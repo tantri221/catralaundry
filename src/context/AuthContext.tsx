@@ -26,7 +26,7 @@ export const DEFAULT_USERS: UserAccount[] = [
     username: 'superadmin',
     password: 'superadmin123',
     phone: '081234567890',
-    role: 'admin',
+    role: 'superadmin',
     outletId: 'all',
     outletName: 'Semua Cabang',
     createdAt: '2026-11-01T00:00:00.000Z',
@@ -57,7 +57,7 @@ export const DEFAULT_USERS: UserAccount[] = [
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY_AUTH_SESSION = 'catra_auth_user_session';
-const STORAGE_KEY_USERS = 'catra_user_accounts_v4';
+const STORAGE_KEY_USERS = 'catra_user_accounts_v5';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -67,11 +67,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Restore users and session from localStorage
   useEffect(() => {
     try {
-      const savedUsers = localStorage.getItem(STORAGE_KEY_USERS) || localStorage.getItem('catra_user_accounts_v3');
+      const savedUsers =
+        localStorage.getItem(STORAGE_KEY_USERS) ||
+        localStorage.getItem('catra_user_accounts_v4') ||
+        localStorage.getItem('catra_user_accounts_v3');
+
       if (savedUsers) {
         const parsed: UserAccount[] = JSON.parse(savedUsers);
-        // Ensure default accounts exist if missing
-        const merged = [...parsed];
+        // Ensure default accounts exist if missing, and ensure superadmin has 'superadmin' role
+        const merged = parsed.map((u) => {
+          if (u.username.toLowerCase() === 'superadmin' || u.id === 'usr-superadmin') {
+            return { ...u, role: 'superadmin' as const };
+          }
+          return u;
+        });
+
         DEFAULT_USERS.forEach((defUser) => {
           if (!merged.some((u) => u.username.toLowerCase() === defUser.username.toLowerCase())) {
             merged.unshift(defUser);
@@ -85,7 +95,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const savedSession = localStorage.getItem(STORAGE_KEY_AUTH_SESSION);
       if (savedSession) {
-        setUser(JSON.parse(savedSession));
+        const parsedSession: User = JSON.parse(savedSession);
+        if (parsedSession.username?.toLowerCase() === 'superadmin' || parsedSession.id === 'usr-superadmin') {
+          parsedSession.role = 'superadmin';
+        }
+        setUser(parsedSession);
       }
     } catch (e) {
       console.warn('Failed to parse auth data', e);
@@ -164,8 +178,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addUser = (userData: Omit<UserAccount, 'id'>) => {
     const trimmedUsername = userData.username.trim().toLowerCase();
 
-    if (trimmedUsername === 'superadmin') {
-      return { success: false, message: 'Username "superadmin" diproteksi oleh sistem!' };
+    // Hanya Super Admin yang boleh membuat akun dengan role superadmin
+    if (user?.role !== 'superadmin' && (userData.role === 'superadmin' || trimmedUsername === 'superadmin')) {
+      return { success: false, message: 'Hanya Super Admin yang berwenang membuat akun dengan role Super Admin!' };
     }
 
     if (users.some((u) => u.username.toLowerCase() === trimmedUsername)) {
@@ -186,13 +201,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = (id: string, updatedData: Partial<UserAccount>) => {
-    if (id === 'usr-superadmin') {
-      return { success: false, message: 'Akun Super Admin sistem diproteksi dan tidak dapat diubah di sini!' };
+    const target = users.find((u) => u.id === id);
+
+    // Proteksi: Hanya superadmin yang boleh mengubah akun superadmin
+    if (
+      (id === 'usr-superadmin' || target?.role === 'superadmin' || target?.username.toLowerCase() === 'superadmin') &&
+      user?.role !== 'superadmin'
+    ) {
+      return { success: false, message: 'Hanya Super Admin yang berwenang mengubah akun Super Admin!' };
     }
 
     if (updatedData.username) {
       const trimmedUsername = updatedData.username.trim().toLowerCase();
-      if (trimmedUsername === 'superadmin') {
+      if (user?.role !== 'superadmin' && trimmedUsername === 'superadmin') {
         return { success: false, message: 'Username "superadmin" diproteksi oleh sistem!' };
       }
       if (users.some((u) => u.id !== id && u.username.toLowerCase() === trimmedUsername)) {
@@ -234,8 +255,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteUser = (id: string) => {
     const target = users.find((u) => u.id === id);
-    if (id === 'usr-superadmin' || target?.username.toLowerCase() === 'superadmin') {
-      return { success: false, message: 'Akun Super Admin sistem diproteksi dan tidak dapat dihapus!' };
+    if (
+      (id === 'usr-superadmin' || target?.role === 'superadmin' || target?.username.toLowerCase() === 'superadmin') &&
+      user?.role !== 'superadmin'
+    ) {
+      return { success: false, message: 'Hanya Super Admin yang berwenang menghapus akun Super Admin!' };
     }
 
     if (user && user.id === id) {

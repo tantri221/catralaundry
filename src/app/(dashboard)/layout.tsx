@@ -85,8 +85,20 @@ export default function DashboardLayout({
             <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
               <div className="text-right">
                 <p className="text-xs font-bold text-slate-800">{user?.name || 'Administrator'}</p>
-                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 uppercase">
-                  {user?.role || 'Admin'}
+                <span
+                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border uppercase ${
+                    user?.role === 'superadmin'
+                      ? 'text-purple-600 bg-purple-50 border-purple-200'
+                      : user?.role === 'admin'
+                      ? 'text-blue-600 bg-blue-50 border-blue-100'
+                      : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                  }`}
+                >
+                  {user?.role === 'superadmin'
+                    ? 'Super Admin'
+                    : user?.role === 'admin'
+                    ? 'Administrator'
+                    : 'Kasir'}
                 </span>
               </div>
               <button

@@ -57,7 +57,7 @@ export const Sidebar: React.FC = () => {
       icon: Clock,
       badge: readyCount > 0 ? `${readyCount} Siap` : undefined,
     },
-    ...(user?.role === 'admin'
+    ...(user?.role === 'admin' || user?.role === 'superadmin'
       ? [
           {
             label: 'Daftar Harga & Tarif',
@@ -163,8 +163,18 @@ export const Sidebar: React.FC = () => {
       {/* User profile & Logout */}
       <div className="p-3 border-t border-slate-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
-            {user?.role === 'admin' ? (
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+              user?.role === 'superadmin'
+                ? 'bg-purple-100 text-purple-700'
+                : user?.role === 'admin'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}
+          >
+            {user?.role === 'superadmin' ? (
+              <ShieldCheck className="w-4 h-4 text-purple-600" />
+            ) : user?.role === 'admin' ? (
               <ShieldCheck className="w-4 h-4 text-blue-600" />
             ) : (
               <User className="w-4 h-4 text-emerald-600" />
@@ -172,8 +182,20 @@ export const Sidebar: React.FC = () => {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
-            <p className="text-[10px] uppercase font-semibold text-blue-600 tracking-wider">
-              {user?.role || 'Admin'}
+            <p
+              className={`text-[10px] uppercase font-semibold tracking-wider ${
+                user?.role === 'superadmin'
+                  ? 'text-purple-600'
+                  : user?.role === 'admin'
+                  ? 'text-blue-600'
+                  : 'text-emerald-600'
+              }`}
+            >
+              {user?.role === 'superadmin'
+                ? 'Super Admin'
+                : user?.role === 'admin'
+                ? 'Administrator'
+                : 'Kasir'}
             </p>
           </div>
         </div>

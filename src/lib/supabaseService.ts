@@ -279,7 +279,7 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
       password: row.password,
       name: row.full_name,
       phone: row.phone,
-      role: row.role as 'admin' | 'kasir',
+      role: (row.role === 'superadmin' || row.username === 'superadmin' ? 'superadmin' : row.role) as UserAccount['role'],
       outletId: row.outlet_id || 'all',
       outletName: row.outlet_id === 'out-2' ? 'Catra Laundry - Cabang Sudirman' : 'Catra Laundry - Outlet Pusat',
       createdAt: row.created_at || new Date().toISOString(),
@@ -292,7 +292,7 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
 
 export async function saveStaffUserToSupabase(user: UserAccount): Promise<boolean> {
   try {
-    const { error } = await supabase.from('staff_users').upsert({
+    const payload = {
       id: user.id,
       username: user.username,
       password: user.password,
@@ -302,7 +302,17 @@ export async function saveStaffUserToSupabase(user: UserAccount): Promise<boolea
       outlet_id: user.outletId === 'all' ? null : user.outletId,
       is_active: true,
       created_at: user.createdAt || new Date().toISOString(),
-    });
+    };
+
+    let { error } = await supabase.from('staff_users').upsert(payload);
+
+    // Fallback if DB CHECK constraint still only allows ('admin', 'kasir')
+    if (error && error.code === '23514' && user.role === 'superadmin') {
+      const fallbackPayload = { ...payload, role: 'admin' };
+      const res = await supabase.from('staff_users').upsert(fallbackPayload);
+      error = res.error;
+    }
+
     if (error) {
       console.warn('[Supabase] saveStaffUser error:', error.message);
       return false;

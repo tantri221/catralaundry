@@ -51,8 +51,8 @@ export default function OutletsPage() {
   // Feedback Alert
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Access Control: Only admin can manage outlets
-  if (user?.role !== 'admin') {
+  // Access Control: Only admin & superadmin can manage outlets
+  if (user?.role !== 'admin' && user?.role !== 'superadmin') {
     return (
       <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center max-w-lg mx-auto my-12 space-y-4">
         <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto">
