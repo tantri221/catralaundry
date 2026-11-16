@@ -52,7 +52,7 @@ export interface Order {
   finalAmount: number;
   paidAmount: number;
   paymentStatus: PaymentStatus;
-  paymentMethod?: 'cash' | 'qris' | 'transfer';
+  paymentMethod?: 'cash' | 'qris' | 'transfer' | 'bon';
   orderStatus: OrderStatus;
   createdAt: string;
   estimatedCompletion: string;

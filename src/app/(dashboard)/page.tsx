@@ -38,16 +38,35 @@ export default function DashboardPage() {
   const [selectedHandoverOrder, setSelectedHandoverOrder] = useState<Order | null>(null);
 
   const handleConfirmHandover = (options: {
-    paymentMethod: 'cash' | 'qris' | 'transfer';
+    isBon: boolean;
+    paymentMethod?: 'cash' | 'qris' | 'transfer' | 'bon';
     cashReceived?: number;
+    bonNotes?: string;
   }) => {
     if (!selectedHandoverOrder) return;
 
-    // 1. Mark status as completed
-    updateOrderStatus(selectedHandoverOrder.id, 'completed');
+    // 1. Prepare notes
+    const existingNotes = selectedHandoverOrder.notes || '';
+    let updatedNotes = existingNotes;
 
-    // 2. Mark payment as paid
-    updatePaymentStatus(selectedHandoverOrder.id, 'paid', selectedHandoverOrder.finalAmount);
+    if (options.isBon) {
+      const bonTag = options.bonNotes
+        ? `[BON: ${options.bonNotes}]`
+        : '[BON / Bayar Belakangan]';
+      updatedNotes = existingNotes ? `${existingNotes} • ${bonTag}` : bonTag;
+    }
+
+    // 2. Mark status as completed
+    updateOrderStatus(selectedHandoverOrder.id, 'completed', {
+      notes: updatedNotes,
+    });
+
+    // 3. Mark payment as paid or keep unpaid for BON
+    if (options.isBon) {
+      updatePaymentStatus(selectedHandoverOrder.id, 'unpaid', 0);
+    } else {
+      updatePaymentStatus(selectedHandoverOrder.id, 'paid', selectedHandoverOrder.finalAmount);
+    }
 
     setSelectedHandoverOrder(null);
   };
@@ -368,18 +387,27 @@ export default function DashboardPage() {
                     {/* Badge Pembayaran */}
                     <span
                       className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                        isPaid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                        isPaid
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : isCompleted
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                          : 'bg-rose-50 text-rose-700'
                       }`}
                     >
-                      {isPaid ? 'Lunas' : 'Belum Bayar'}
+                      {isPaid ? 'Lunas' : isCompleted ? 'Belum Lunas (BON)' : 'Belum Bayar'}
                     </span>
                   </div>
 
                   <p className="text-xs text-slate-600">
                     <strong className="text-slate-700">Layanan:</strong>{' '}
                     {order.items.map((i) => `${i.serviceName} (${i.quantity} ${i.unit})`).join(', ')}
-                    {order.notes && <span className="text-amber-700 italic ml-2">Note: {order.notes}</span>}
                   </p>
+
+                  {order.notes && (
+                    <p className="text-[11px] text-purple-900 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200/80 inline-block font-medium">
+                      📝 <span className="font-semibold">Catatan:</span> {order.notes}
+                    </p>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs pt-1">
                     <p className="font-semibold text-slate-800">
@@ -448,7 +476,28 @@ export default function DashboardPage() {
                     </button>
                   )}
 
-                  {isCompleted && (
+                  {isCompleted && !isPaid && (
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Tandai pelunasan tagihan BON untuk nota ${order.invoice} (${formatRupiah(
+                              order.finalAmount
+                            )}) sebagai LUNAS?`
+                          )
+                        ) {
+                          updatePaymentStatus(order.id, 'paid', order.finalAmount);
+                        }
+                      }}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                      title="Pelanggan melunasi tagihan BON"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Lunasi BON 💵</span>
+                    </button>
+                  )}
+
+                  {isCompleted && isPaid && (
                     <span className="text-xs text-slate-400 font-medium px-2 py-1">
                       Sudah Selesai
                     </span>

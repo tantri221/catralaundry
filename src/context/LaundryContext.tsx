@@ -36,7 +36,7 @@ interface LaundryContextType {
     finalAmount: number;
     paidAmount: number;
     paymentStatus: PaymentStatus;
-    paymentMethod?: 'cash' | 'qris' | 'transfer';
+    paymentMethod?: 'cash' | 'qris' | 'transfer' | 'bon';
     estimatedHours: number;
     notes?: string;
     outletId?: string;
