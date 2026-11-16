@@ -3,10 +3,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Order, Service, OrderStatus, PaymentStatus } from '@/types/laundry';
 import { INITIAL_ORDERS, INITIAL_SERVICES } from '@/lib/constants';
+import {
+  getOrdersFromSupabase,
+  saveOrderToSupabase,
+  updateOrderStatusInSupabase,
+  updatePaymentStatusInSupabase,
+  removeOrderFromSupabase,
+  getServicesFromSupabase,
+  saveServiceToSupabase,
+  mapRowToOrder,
+} from '@/lib/supabaseService';
+import { supabase } from '@/lib/supabase';
 
 interface LaundryContextType {
   orders: Order[];
   services: Service[];
+  isCloudSynced: boolean;
   addOrder: (newOrderData: {
     customer: { name: string; phone: string; address?: string; notes?: string };
     items: {
@@ -39,6 +51,7 @@ interface LaundryContextType {
   getOrderByIdOrInvoice: (query: string) => Order | undefined;
   addService: (service: Omit<Service, 'id'>) => void;
   deleteOrder: (orderId: string) => void;
+  refreshFromCloud: () => Promise<void>;
 }
 
 const LaundryContext = createContext<LaundryContextType | undefined>(undefined);
@@ -50,7 +63,9 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
+  // 1. Initial local restore
   useEffect(() => {
     try {
       const savedOrders = localStorage.getItem(LOCAL_STORAGE_KEY_ORDERS);
@@ -69,6 +84,75 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  // 2. Fetch from Supabase Cloud on mount
+  const refreshFromCloud = async () => {
+    try {
+      const [cloudOrders, cloudServices] = await Promise.all([
+        getOrdersFromSupabase(),
+        getServicesFromSupabase(),
+      ]);
+
+      if (cloudOrders && cloudOrders.length > 0) {
+        setOrders(cloudOrders);
+        localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(cloudOrders));
+        setIsCloudSynced(true);
+      }
+      if (cloudServices && cloudServices.length > 0) {
+        setServices(cloudServices);
+        localStorage.setItem(LOCAL_STORAGE_KEY_SERVICES, JSON.stringify(cloudServices));
+      }
+    } catch (err) {
+      console.warn('[LaundryProvider] Supabase sync error, using local fallback:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshFromCloud();
+  }, []);
+
+  // 3. Realtime subscription on orders
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime:catra_orders')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newOrder = mapRowToOrder(payload.new);
+            setOrders((prev) => {
+              if (prev.some((o) => o.id === newOrder.id)) return prev;
+              const next = [newOrder, ...prev];
+              localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(next));
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = mapRowToOrder(payload.new);
+            setOrders((prev) => {
+              const next = prev.map((o) => (o.id === updated.id ? updated : o));
+              localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(next));
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setOrders((prev) => {
+                const next = prev.filter((o) => o.id !== oldId);
+                localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(next));
+                return next;
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Sync to localStorage as offline cache
   useEffect(() => {
     if (!isInitialized) return;
     try {
@@ -117,7 +201,7 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       paidAmount: data.paidAmount,
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
-      orderStatus: 'queue', // Default masuk ke 'Siap Dikerjakan'
+      orderStatus: 'queue',
       createdAt: now.toISOString(),
       estimatedCompletion: estimatedCompletionDate.toISOString(),
       notes: data.notes,
@@ -126,6 +210,12 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setOrders((prev) => [newOrder, ...prev]);
+
+    // Save to Supabase Cloud asynchronously
+    saveOrderToSupabase(newOrder).catch((err) => {
+      console.warn('Failed to upload order to Supabase:', err);
+    });
+
     return newOrder;
   };
 
@@ -134,6 +224,8 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     status: OrderStatus,
     options?: { estimatedCompletion?: string; notes?: string }
   ) => {
+    const completedAt = status === 'completed' ? new Date().toISOString() : undefined;
+
     setOrders((prev) =>
       prev.map((order) => {
         if (order.id === orderId || order.invoice === orderId) {
@@ -142,36 +234,55 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             orderStatus: status,
             estimatedCompletion: options?.estimatedCompletion || order.estimatedCompletion,
             notes: options?.notes !== undefined ? options.notes : order.notes,
-            completedAt: status === 'completed' ? new Date().toISOString() : order.completedAt,
+            completedAt: completedAt || order.completedAt,
           };
         }
         return order;
       })
     );
+
+    // Update in Supabase
+    updateOrderStatusInSupabase(orderId, status, {
+      ...options,
+      completedAt,
+    }).catch((err) => console.warn('Supabase updateOrderStatus error:', err));
   };
 
   const updatePaymentStatus = (orderId: string, status: PaymentStatus, paidAmount?: number) => {
+    let resolvedPaidAmount = paidAmount;
     setOrders((prev) =>
       prev.map((order) => {
         if (order.id === orderId || order.invoice === orderId) {
+          const finalPaid =
+            paidAmount !== undefined
+              ? paidAmount
+              : status === 'paid'
+              ? order.finalAmount
+              : order.paidAmount;
+          resolvedPaidAmount = finalPaid;
           return {
             ...order,
             paymentStatus: status,
-            paidAmount:
-              paidAmount !== undefined
-                ? paidAmount
-                : status === 'paid'
-                ? order.finalAmount
-                : order.paidAmount,
+            paidAmount: finalPaid,
           };
         }
         return order;
       })
     );
+
+    // Update in Supabase
+    if (resolvedPaidAmount !== undefined) {
+      updatePaymentStatusInSupabase(orderId, status, resolvedPaidAmount).catch((err) =>
+        console.warn('Supabase updatePaymentStatus error:', err)
+      );
+    }
   };
 
   const deleteOrder = (orderId: string) => {
     setOrders((prev) => prev.filter((o) => o.id !== orderId && o.invoice !== orderId));
+    removeOrderFromSupabase(orderId).catch((err) =>
+      console.warn('Supabase removeOrder error:', err)
+    );
   };
 
   const getOrderByIdOrInvoice = (query: string): Order | undefined => {
@@ -190,6 +301,9 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: `srv-${Date.now()}`,
     };
     setServices((prev) => [...prev, newService]);
+    saveServiceToSupabase(newService).catch((err) =>
+      console.warn('Supabase saveService error:', err)
+    );
   };
 
   return (
@@ -197,12 +311,14 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       value={{
         orders,
         services,
+        isCloudSynced,
         addOrder,
         updateOrderStatus,
         updatePaymentStatus,
         getOrderByIdOrInvoice,
         addService,
         deleteOrder,
+        refreshFromCloud,
       }}
     >
       {children}

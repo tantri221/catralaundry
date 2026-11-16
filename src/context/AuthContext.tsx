@@ -1,7 +1,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserAccount, AuthState, UserRole } from '@/types/auth';
+import { User, UserAccount, AuthState } from '@/types/auth';
+import {
+  getStaffUsersFromSupabase,
+  saveStaffUserToSupabase,
+  removeStaffUserFromSupabase,
+} from '@/lib/supabaseService';
 
 interface AuthContextType extends AuthState {
   users: UserAccount[];
@@ -10,6 +15,7 @@ interface AuthContextType extends AuthState {
   addUser: (userData: Omit<UserAccount, 'id'>) => { success: boolean; message?: string };
   updateUser: (id: string, updatedData: Partial<UserAccount>) => { success: boolean; message?: string };
   deleteUser: (id: string) => { success: boolean; message?: string };
+  refreshUsers: () => Promise<void>;
 }
 
 // Master Accounts
@@ -68,6 +74,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Sync users with Supabase Cloud
+  const refreshUsers = async () => {
+    try {
+      const cloudUsers = await getStaffUsersFromSupabase();
+      if (cloudUsers && cloudUsers.length > 0) {
+        setUsers(cloudUsers);
+        localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(cloudUsers));
+      }
+    } catch (err) {
+      console.warn('[AuthProvider] Supabase sync error, using local fallback:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshUsers();
+  }, []);
+
   const saveUsersList = (updatedList: UserAccount[]) => {
     setUsers(updatedList);
     try {
@@ -98,7 +121,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(authUser);
       localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(authUser));
 
-      // If user is assigned to a specific outlet, set active outlet in localStorage
       if (matched.outletId && matched.outletId !== 'all') {
         try {
           localStorage.setItem('catra_laundry_active_outlet_id_v2', matched.outletId);
@@ -122,7 +144,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addUser = (userData: Omit<UserAccount, 'id'>) => {
     const trimmedUsername = userData.username.trim().toLowerCase();
 
-    // Check if username already exists
     if (users.some((u) => u.username.toLowerCase() === trimmedUsername)) {
       return { success: false, message: `Username "${userData.username}" sudah digunakan!` };
     }
@@ -136,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updated = [...users, newUser];
     saveUsersList(updated);
+    saveStaffUserToSupabase(newUser).catch((e) => console.warn(e));
     return { success: true };
   };
 
@@ -147,11 +169,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    let modifiedUser: UserAccount | null = null;
     const updated = users.map((u) => {
       if (u.id === id) {
         const merged = { ...u, ...updatedData };
         if (updatedData.username) merged.username = updatedData.username.trim().toLowerCase();
-        // If current logged-in user is updated, update active session too
         if (user && user.id === id) {
           const updatedSessionUser: User = {
             id: merged.id,
@@ -166,12 +188,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(updatedSessionUser);
           localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(updatedSessionUser));
         }
+        modifiedUser = merged;
         return merged;
       }
       return u;
     });
 
     saveUsersList(updated);
+    if (modifiedUser) {
+      saveStaffUserToSupabase(modifiedUser).catch((e) => console.warn(e));
+    }
     return { success: true };
   };
 
@@ -182,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updated = users.filter((u) => u.id !== id);
     saveUsersList(updated);
+    removeStaffUserFromSupabase(id).catch((e) => console.warn(e));
     return { success: true };
   };
 
@@ -197,6 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addUser,
         updateUser,
         deleteUser,
+        refreshUsers,
       }}
     >
       {children}

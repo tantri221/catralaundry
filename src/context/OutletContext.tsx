@@ -2,6 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Outlet } from '@/types/outlet';
+import {
+  getOutletsFromSupabase,
+  saveOutletToSupabase,
+  removeOutletFromSupabase,
+} from '@/lib/supabaseService';
 
 interface OutletContextType {
   outlets: Outlet[];
@@ -12,6 +17,7 @@ interface OutletContextType {
   deleteOutlet: (id: string) => { success: boolean; message?: string };
   toggleOutletStatus: (id: string) => void;
   activateAllOutlets: () => void;
+  refreshOutlets: () => Promise<void>;
 }
 
 export const DEFAULT_OUTLETS: Outlet[] = [
@@ -19,9 +25,9 @@ export const DEFAULT_OUTLETS: Outlet[] = [
     id: 'out-1',
     name: 'Catra Laundry - Outlet Pusat',
     code: 'PST',
-    address: 'Jl. Melati No. 45, Kebayoran Baru, Jakarta Selatan',
-    phone: '0812-3456-7890',
-    footerNote: 'Harap bawa nota ini saat pengambilan cucian. Garansi cuci bersih & wangi.',
+    address: 'Jl. Merdeka No. 10, Jakarta Pusat',
+    phone: '081234567890',
+    footerNote: 'Harap membawa nota ini saat pengambilan cucian.',
     isPrimary: true,
     status: 'active',
   },
@@ -29,8 +35,8 @@ export const DEFAULT_OUTLETS: Outlet[] = [
     id: 'out-2',
     name: 'Catra Laundry - Cabang Sudirman',
     code: 'SDR',
-    address: 'Jl. Jend. Sudirman Kav. 21, Gedung Wisma Lt. 1, Jakarta Pusat',
-    phone: '0857-9876-5432',
+    address: 'Jl. Jend. Sudirman Kav. 25, Jakarta Selatan',
+    phone: '081298765432',
     footerNote: 'Layanan cepat dan higienis. Terima kasih atas kunjungan Anda.',
     isPrimary: false,
     status: 'active',
@@ -47,11 +53,11 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeOutletId, setActiveOutletIdState] = useState<string>('out-1');
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // 1. Load from localStorage
   useEffect(() => {
     try {
       const savedOutlets = localStorage.getItem(STORAGE_KEY_OUTLETS);
       if (savedOutlets) {
-        // Ensure all loaded outlets have status: 'active'
         const parsed: Outlet[] = JSON.parse(savedOutlets);
         const allActive = parsed.map((o) => ({ ...o, status: 'active' as const }));
         setOutlets(allActive);
@@ -68,6 +74,23 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       setIsInitialized(true);
     }
+  }, []);
+
+  // 2. Fetch from Supabase Cloud on mount
+  const refreshOutlets = async () => {
+    try {
+      const cloudOutlets = await getOutletsFromSupabase();
+      if (cloudOutlets && cloudOutlets.length > 0) {
+        setOutlets(cloudOutlets);
+        localStorage.setItem(STORAGE_KEY_OUTLETS, JSON.stringify(cloudOutlets));
+      }
+    } catch (err) {
+      console.warn('[OutletProvider] Supabase sync error, using local fallback:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshOutlets();
   }, []);
 
   const saveOutlets = (list: Outlet[]) => {
@@ -96,10 +119,10 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const toggleOutletStatus = (id: string) => {
     const updated = outlets.map((o) => {
       if (o.id === id) {
-        return {
-          ...o,
-          status: (o.status === 'active' ? 'inactive' : 'active') as 'active' | 'inactive',
-        };
+        const newStatus = (o.status === 'active' ? 'inactive' : 'active') as 'active' | 'inactive';
+        const changed = { ...o, status: newStatus };
+        saveOutletToSupabase(changed).catch((e) => console.warn(e));
+        return changed;
       }
       return o;
     });
@@ -123,12 +146,13 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...outletData,
       id: `out-${Date.now()}`,
       code: trimmedCode,
-      status: 'active', // Selalu aktif secara default
+      status: 'active',
       isPrimary: outlets.length === 0,
     };
 
     const updated = [...outlets, newOutlet];
     saveOutlets(updated);
+    saveOutletToSupabase(newOutlet).catch((e) => console.warn(e));
     return { success: true };
   };
 
@@ -140,18 +164,23 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
 
+    let modifiedOutlet: Outlet | null = null;
     const updated = outlets.map((o) => {
       if (o.id === id) {
-        return {
+        modifiedOutlet = {
           ...o,
           ...updatedData,
           code: updatedData.code ? updatedData.code.trim().toUpperCase() : o.code,
         };
+        return modifiedOutlet;
       }
       return o;
     });
 
     saveOutlets(updated);
+    if (modifiedOutlet) {
+      saveOutletToSupabase(modifiedOutlet).catch((e) => console.warn(e));
+    }
     return { success: true };
   };
 
@@ -167,6 +196,7 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updated = outlets.filter((o) => o.id !== id);
     saveOutlets(updated);
+    removeOutletFromSupabase(id).catch((e) => console.warn(e));
 
     if (activeOutletId === id) {
       const fallbackId = updated[0]?.id || 'out-1';
@@ -187,6 +217,7 @@ export const OutletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteOutlet,
         toggleOutletStatus,
         activateAllOutlets,
+        refreshOutlets,
       }}
     >
       {children}
