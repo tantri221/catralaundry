@@ -1,11 +1,16 @@
 import type { NextConfig } from "next";
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || (process.env.NODE_ENV === "production" ? "/catralaundry" : "");
+const isGithubActions = process.env.GITHUB_ACTIONS === "true";
+
+// Hanya gunakan subpath /catralaundry jika di-build oleh GitHub Actions untuk GitHub Pages
+// Di Vercel dan Localhost, basePath otomatis kosong (root domain) sehingga tidak error 404
+const basePath = isGithubActions
+  ? "/catralaundry"
+  : (process.env.NEXT_PUBLIC_BASE_PATH || "");
 
 const nextConfig: NextConfig = {
-  output: "export",
+  ...(isGithubActions ? { output: "export", trailingSlash: true } : {}),
   basePath: basePath || undefined,
-  trailingSlash: true,
   images: {
     unoptimized: true,
   },
