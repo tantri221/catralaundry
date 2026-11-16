@@ -21,6 +21,17 @@ interface AuthContextType extends AuthState {
 // Master Accounts
 export const DEFAULT_USERS: UserAccount[] = [
   {
+    id: 'usr-superadmin',
+    name: 'Super Admin Catra',
+    username: 'superadmin',
+    password: 'superadmin123',
+    phone: '081234567890',
+    role: 'admin',
+    outletId: 'all',
+    outletName: 'Semua Cabang',
+    createdAt: '2026-11-01T00:00:00.000Z',
+  },
+  {
     id: 'usr-admin',
     name: 'Administrator Catra',
     username: 'admin',
@@ -46,7 +57,7 @@ export const DEFAULT_USERS: UserAccount[] = [
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY_AUTH_SESSION = 'catra_auth_user_session';
-const STORAGE_KEY_USERS = 'catra_user_accounts_v3';
+const STORAGE_KEY_USERS = 'catra_user_accounts_v4';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -56,9 +67,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Restore users and session from localStorage
   useEffect(() => {
     try {
-      const savedUsers = localStorage.getItem(STORAGE_KEY_USERS);
+      const savedUsers = localStorage.getItem(STORAGE_KEY_USERS) || localStorage.getItem('catra_user_accounts_v3');
       if (savedUsers) {
-        setUsers(JSON.parse(savedUsers));
+        const parsed: UserAccount[] = JSON.parse(savedUsers);
+        // Ensure default accounts exist if missing
+        const merged = [...parsed];
+        DEFAULT_USERS.forEach((defUser) => {
+          if (!merged.some((u) => u.username.toLowerCase() === defUser.username.toLowerCase())) {
+            merged.unshift(defUser);
+          }
+        });
+        setUsers(merged);
+        localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(merged));
       } else {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
       }
