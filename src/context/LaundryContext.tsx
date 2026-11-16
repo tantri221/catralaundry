@@ -11,6 +11,7 @@ import {
   removeOrderFromSupabase,
   getServicesFromSupabase,
   saveServiceToSupabase,
+  removeServiceFromSupabase,
   mapRowToOrder,
 } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabase';
@@ -50,6 +51,8 @@ interface LaundryContextType {
   updatePaymentStatus: (orderId: string, status: PaymentStatus, paidAmount?: number) => void;
   getOrderByIdOrInvoice: (query: string) => Order | undefined;
   addService: (service: Omit<Service, 'id'>) => void;
+  updateService: (service: Service) => void;
+  deleteService: (serviceId: string) => void;
   deleteOrder: (orderId: string) => void;
   refreshFromCloud: () => Promise<void>;
 }
@@ -316,6 +319,32 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
+  const updateService = (updatedService: Service) => {
+    setServices((prev) => {
+      const next = prev.map((s) => (s.id === updatedService.id ? updatedService : s));
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY_SERVICES, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    saveServiceToSupabase(updatedService).catch((err) =>
+      console.warn('Supabase saveService update error:', err)
+    );
+  };
+
+  const deleteService = (serviceId: string) => {
+    setServices((prev) => {
+      const next = prev.filter((s) => s.id !== serviceId);
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY_SERVICES, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    removeServiceFromSupabase(serviceId).catch((err) =>
+      console.warn('Supabase removeService error:', err)
+    );
+  };
+
   return (
     <LaundryContext.Provider
       value={{
@@ -327,6 +356,8 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatePaymentStatus,
         getOrderByIdOrInvoice,
         addService,
+        updateService,
+        deleteService,
         deleteOrder,
         refreshFromCloud,
       }}

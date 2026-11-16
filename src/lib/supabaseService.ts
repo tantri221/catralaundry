@@ -117,6 +117,20 @@ export async function saveServiceToSupabase(service: Service): Promise<boolean> 
   }
 }
 
+export async function removeServiceFromSupabase(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('services').delete().eq('id', id);
+    if (error) {
+      console.warn('[Supabase] removeService error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] removeService exception:', err);
+    return false;
+  }
+}
+
 // ========================
 // ORDERS
 // ========================
