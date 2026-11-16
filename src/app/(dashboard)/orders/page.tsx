@@ -14,7 +14,6 @@ import {
 } from '@/lib/constants';
 import { Order } from '@/types/laundry';
 import { ReceiptModal } from '@/components/ReceiptModal';
-import { StartProcessingModal } from '@/components/StartProcessingModal';
 import { HandoverModal } from '@/components/HandoverModal';
 import {
   Search,
@@ -24,7 +23,6 @@ import {
   Trash2,
   Store,
   Filter,
-  Play,
   Check,
   Package,
   Clock,
@@ -36,9 +34,8 @@ export default function OrdersPage() {
   const { orders, updateOrderStatus, updatePaymentStatus, deleteOrder } = useLaundry();
 
   const [search, setSearch] = useState('');
-  const [filterTab, setFilterTab] = useState<'all' | 'queue' | 'process' | 'ready' | 'completed'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'process' | 'ready' | 'completed'>('all');
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<Order | null>(null);
-  const [selectedProcessOrder, setSelectedProcessOrder] = useState<Order | null>(null);
   const [selectedHandoverOrder, setSelectedHandoverOrder] = useState<Order | null>(null);
 
   const handleConfirmHandover = (options: {
@@ -56,20 +53,6 @@ export default function OrdersPage() {
     setSelectedHandoverOrder(null);
   };
 
-  const handleConfirmStartProcess = (options: {
-    estimatedCompletion: string;
-    notes?: string;
-  }) => {
-    if (!selectedProcessOrder) return;
-
-    updateOrderStatus(selectedProcessOrder.id, 'washing', {
-      estimatedCompletion: options.estimatedCompletion,
-      notes: options.notes,
-    });
-
-    setSelectedProcessOrder(null);
-  };
-
   // Outlet Filter logic
   const isCashier = user?.role === 'kasir';
   const cashierOutletId = user?.outletId || 'out-1';
@@ -85,10 +68,13 @@ export default function OrdersPage() {
   });
 
   const filteredOrders = scopedOrders.filter((order) => {
-    if (filterTab === 'queue') {
-      if (order.orderStatus !== 'queue') return false;
-    } else if (filterTab === 'process') {
-      if (order.orderStatus !== 'washing' && order.orderStatus !== 'drying' && order.orderStatus !== 'ironing') {
+    if (filterTab === 'process') {
+      if (
+        order.orderStatus !== 'washing' &&
+        order.orderStatus !== 'drying' &&
+        order.orderStatus !== 'ironing' &&
+        order.orderStatus !== 'queue'
+      ) {
         return false;
       }
     } else if (filterTab === 'ready') {
@@ -115,9 +101,12 @@ export default function OrdersPage() {
     : outlets.find((o) => o.id === adminOutletFilter)?.name || 'Cabang Terpilih';
 
   // Counts for each tab
-  const queueCount = scopedOrders.filter((o) => o.orderStatus === 'queue').length;
   const processCount = scopedOrders.filter(
-    (o) => o.orderStatus === 'washing' || o.orderStatus === 'drying' || o.orderStatus === 'ironing'
+    (o) =>
+      o.orderStatus === 'washing' ||
+      o.orderStatus === 'drying' ||
+      o.orderStatus === 'ironing' ||
+      o.orderStatus === 'queue'
   ).length;
   const readyCount = scopedOrders.filter((o) => o.orderStatus === 'ready').length;
   const completedCount = scopedOrders.filter((o) => o.orderStatus === 'completed').length;
@@ -139,7 +128,7 @@ export default function OrdersPage() {
           <p className="text-slate-500 text-xs md:text-sm mt-0.5">
             {isCashier
               ? `Kelola alur tahapan cucian khusus untuk cabang ${currentOutletName}`
-              : 'Pantau cucian mulai dari siap dikerjakan, proses cuci/setrika, hingga siap diambil'}
+              : 'Pantau cucian mulai dari proses cuci/setrika hingga siap diambil'}
           </p>
         </div>
       </div>
@@ -188,7 +177,6 @@ export default function OrdersPage() {
         <div className="flex gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           {[
             { id: 'all', label: 'Semua', count: scopedOrders.length },
-            { id: 'queue', label: '📋 Siap Dikerjakan', count: queueCount, badgeColor: 'bg-indigo-100 text-indigo-700' },
             { id: 'process', label: '🧺 Sedang Dikerjakan', count: processCount, badgeColor: 'bg-amber-100 text-amber-700' },
             { id: 'ready', label: '✅ Siap Diambil', count: readyCount, badgeColor: 'bg-emerald-100 text-emerald-700' },
             { id: 'completed', label: '📦 Sudah Diambil', count: completedCount, badgeColor: 'bg-slate-100 text-slate-600' },
@@ -236,9 +224,11 @@ export default function OrdersPage() {
           </div>
         ) : (
           filteredOrders.map((order) => {
-            const isQueue = order.orderStatus === 'queue';
             const isProcessing =
-              order.orderStatus === 'washing' || order.orderStatus === 'drying' || order.orderStatus === 'ironing';
+              order.orderStatus === 'washing' ||
+              order.orderStatus === 'drying' ||
+              order.orderStatus === 'ironing' ||
+              order.orderStatus === 'queue';
             const isReady = order.orderStatus === 'ready';
             const isCompleted = order.orderStatus === 'completed';
             const isPaid = order.paymentStatus === 'paid';
@@ -265,11 +255,6 @@ export default function OrdersPage() {
                     </span>
 
                     {/* Status Badge */}
-                    {isQueue && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        📋 Siap Dikerjakan
-                      </span>
-                    )}
                     {isProcessing && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                         🧺 Sedang Dikerjakan
@@ -348,16 +333,6 @@ export default function OrdersPage() {
                   </button>
 
                   {/* Workflow Advancement Buttons */}
-                  {isQueue && (
-                    <button
-                      onClick={() => setSelectedProcessOrder(order)}
-                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Mulai Kerjakan 🧺</span>
-                    </button>
-                  )}
-
                   {isProcessing && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'ready')}
@@ -406,13 +381,6 @@ export default function OrdersPage() {
       <ReceiptModal
         order={selectedReceiptOrder}
         onClose={() => setSelectedReceiptOrder(null)}
-      />
-
-      {/* Modal Input Estimasi Pengerjaan */}
-      <StartProcessingModal
-        order={selectedProcessOrder}
-        onClose={() => setSelectedProcessOrder(null)}
-        onConfirm={handleConfirmStartProcess}
       />
 
       {/* Modal Pengingat Pelunasan Pembayaran & Penyerahan */}

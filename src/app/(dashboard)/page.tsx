@@ -14,7 +14,6 @@ import {
 } from '@/lib/constants';
 import { Order } from '@/types/laundry';
 import { ReceiptModal } from '@/components/ReceiptModal';
-import { StartProcessingModal } from '@/components/StartProcessingModal';
 import { HandoverModal } from '@/components/HandoverModal';
 import {
   Plus,
@@ -24,7 +23,6 @@ import {
   Shirt,
   Store,
   Filter,
-  Play,
   Check,
   Package,
   Clock,
@@ -35,9 +33,8 @@ export default function DashboardPage() {
   const { outlets } = useOutlet();
   const { orders, updateOrderStatus, updatePaymentStatus } = useLaundry();
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<Order | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'queue' | 'process' | 'ready'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'process' | 'ready' | 'completed'>('all');
   const [search, setSearch] = useState('');
-  const [selectedProcessOrder, setSelectedProcessOrder] = useState<Order | null>(null);
   const [selectedHandoverOrder, setSelectedHandoverOrder] = useState<Order | null>(null);
 
   const handleConfirmHandover = (options: {
@@ -55,20 +52,6 @@ export default function DashboardPage() {
     setSelectedHandoverOrder(null);
   };
 
-  const handleConfirmStartProcess = (options: {
-    estimatedCompletion: string;
-    notes?: string;
-  }) => {
-    if (!selectedProcessOrder) return;
-
-    updateOrderStatus(selectedProcessOrder.id, 'washing', {
-      estimatedCompletion: options.estimatedCompletion,
-      notes: options.notes,
-    });
-
-    setSelectedProcessOrder(null);
-  };
-
   // Outlet Filter logic
   const isCashier = user?.role === 'kasir';
   const cashierOutletId = user?.outletId || 'out-1';
@@ -84,21 +67,31 @@ export default function DashboardPage() {
   });
 
   // Counts based on scoped orders
-  const queueOrders = scopedOrders.filter((o) => o.orderStatus === 'queue');
   const processingOrders = scopedOrders.filter(
-    (o) => o.orderStatus === 'washing' || o.orderStatus === 'drying' || o.orderStatus === 'ironing'
+    (o) =>
+      o.orderStatus === 'washing' ||
+      o.orderStatus === 'drying' ||
+      o.orderStatus === 'ironing' ||
+      o.orderStatus === 'queue'
   );
   const readyOrders = scopedOrders.filter((o) => o.orderStatus === 'ready');
   const completedOrders = scopedOrders.filter((o) => o.orderStatus === 'completed');
 
   // Filter list by status tab and search
   const displayOrders = scopedOrders.filter((order) => {
-    if (activeTab === 'queue') {
-      if (order.orderStatus !== 'queue') return false;
-    } else if (activeTab === 'process') {
-      if (order.orderStatus !== 'washing' && order.orderStatus !== 'drying' && order.orderStatus !== 'ironing') return false;
+    if (activeTab === 'process') {
+      if (
+        order.orderStatus !== 'washing' &&
+        order.orderStatus !== 'drying' &&
+        order.orderStatus !== 'ironing' &&
+        order.orderStatus !== 'queue'
+      ) {
+        return false;
+      }
     } else if (activeTab === 'ready') {
       if (order.orderStatus !== 'ready') return false;
+    } else if (activeTab === 'completed') {
+      if (order.orderStatus !== 'completed') return false;
     }
 
     if (search.trim()) {
@@ -189,31 +182,6 @@ export default function DashboardPage() {
 
       {/* 3. Status Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {/* Siap Dikerjakan */}
-        <button
-          onClick={() => setActiveTab('queue')}
-          className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
-            activeTab === 'queue'
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
-              : 'bg-white text-slate-800 border-slate-200 hover:border-indigo-300'
-          }`}
-        >
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm">📋</span>
-              <p className={`text-xs font-semibold ${activeTab === 'queue' ? 'text-indigo-100' : 'text-slate-500'}`}>
-                Siap Dikerjakan
-              </p>
-            </div>
-            <p className="text-2xl font-black mt-1">{queueOrders.length}</p>
-          </div>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-            activeTab === 'queue' ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-700'
-          }`}>
-            Lihat
-          </span>
-        </button>
-
         {/* Sedang Dikerjakan */}
         <button
           onClick={() => setActiveTab('process')}
@@ -264,6 +232,31 @@ export default function DashboardPage() {
           </span>
         </button>
 
+        {/* Sudah Diambil / Selesai */}
+        <button
+          onClick={() => setActiveTab('completed')}
+          className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
+            activeTab === 'completed'
+              ? 'bg-slate-700 text-white border-slate-700 shadow-md shadow-slate-500/20'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm">📦</span>
+              <p className={`text-xs font-semibold ${activeTab === 'completed' ? 'text-slate-200' : 'text-slate-500'}`}>
+                Sudah Diambil
+              </p>
+            </div>
+            <p className="text-2xl font-black mt-1">{completedOrders.length}</p>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+            activeTab === 'completed' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+          }`}>
+            Lihat
+          </span>
+        </button>
+
         {/* Semua Cucian */}
         <button
           onClick={() => setActiveTab('all')}
@@ -306,13 +299,13 @@ export default function DashboardPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-bold text-slate-800">
-            {activeTab === 'queue'
-              ? 'Cucian Siap Dikerjakan (Antrean Baru)'
+            {activeTab === 'process'
+              ? 'Cucian Sedang Dikerjakan'
               : activeTab === 'ready'
               ? 'Cucian Siap Diambil Pelanggan'
-              : activeTab === 'process'
-              ? 'Cucian Sedang Dikerjakan'
-              : 'Daftar Cucian'}
+              : activeTab === 'completed'
+              ? 'Cucian Selesai / Sudah Diambil'
+              : 'Daftar Semua Cucian'}
             <span className="text-slate-400 font-normal ml-1">({displayOrders.length})</span>
           </h2>
           <span className="text-xs text-slate-500 font-medium">
@@ -328,9 +321,8 @@ export default function DashboardPage() {
           </div>
         ) : (
           displayOrders.map((order) => {
-            const isQueue = order.orderStatus === 'queue';
             const isProcessing =
-              order.orderStatus === 'washing' || order.orderStatus === 'drying' || order.orderStatus === 'ironing';
+              order.orderStatus === 'washing' || order.orderStatus === 'drying' || order.orderStatus === 'ironing' || order.orderStatus === 'queue';
             const isReady = order.orderStatus === 'ready';
             const isCompleted = order.orderStatus === 'completed';
             const isPaid = order.paymentStatus === 'paid';
@@ -344,7 +336,7 @@ export default function DashboardPage() {
                 {/* Info Utama */}
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono font-black text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                    <span className="font-mono font-black text-sm text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-100">
                       {order.invoice}
                     </span>
                     <span className="font-bold text-slate-800 text-base">{order.customer.name}</span>
@@ -357,11 +349,6 @@ export default function DashboardPage() {
                     </span>
 
                     {/* Badge Status */}
-                    {isQueue && (
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        📋 Siap Dikerjakan
-                      </span>
-                    )}
                     {isProcessing && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
                         🧺 Sedang Dikerjakan
@@ -441,16 +428,6 @@ export default function DashboardPage() {
                   </button>
 
                   {/* Workflow Advancement Buttons */}
-                  {isQueue && (
-                    <button
-                      onClick={() => setSelectedProcessOrder(order)}
-                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Mulai Kerjakan 🧺</span>
-                    </button>
-                  )}
-
                   {isProcessing && (
                     <button
                       onClick={() => updateOrderStatus(order.id, 'ready')}
@@ -487,13 +464,6 @@ export default function DashboardPage() {
       <ReceiptModal
         order={selectedReceiptOrder}
         onClose={() => setSelectedReceiptOrder(null)}
-      />
-
-      {/* Modal Input Estimasi Pengerjaan */}
-      <StartProcessingModal
-        order={selectedProcessOrder}
-        onClose={() => setSelectedProcessOrder(null)}
-        onConfirm={handleConfirmStartProcess}
       />
 
       {/* Modal Pengingat Pelunasan Pembayaran & Penyerahan */}
