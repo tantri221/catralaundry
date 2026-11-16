@@ -469,13 +469,7 @@ export default function DashboardPage() {
                   {isCompleted && !isPaid && (
                     <button
                       onClick={() => {
-                        if (
-                          confirm(
-                            `Tandai pelunasan tagihan BON untuk nota ${order.invoice} (${formatRupiah(
-                              order.finalAmount
-                            )}) sebagai LUNAS?`
-                          )
-                        ) {
+                        if (confirm('Yakin BON atas Nota ini sudah BAYAR / LUNAS')) {
                           updatePaymentStatus(order.id, 'paid', order.finalAmount);
                         }
                       }}
