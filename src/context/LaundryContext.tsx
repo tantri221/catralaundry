@@ -62,6 +62,36 @@ const LaundryContext = createContext<LaundryContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY_ORDERS = 'catra_laundry_orders_v3';
 const LOCAL_STORAGE_KEY_SERVICES = 'catra_laundry_services_v3';
 
+export function checkAndAutoAdvanceOrders(orderList: Order[]): {
+  updatedOrders: Order[];
+  changedIds: string[];
+} {
+  const now = Date.now();
+  const changedIds: string[] = [];
+
+  const updatedOrders = orderList.map((order) => {
+    const isOngoing =
+      order.orderStatus === 'washing' ||
+      order.orderStatus === 'drying' ||
+      order.orderStatus === 'ironing' ||
+      order.orderStatus === 'queue';
+
+    if (isOngoing && order.estimatedCompletion) {
+      const completionTime = new Date(order.estimatedCompletion).getTime();
+      if (!isNaN(completionTime) && completionTime <= now) {
+        changedIds.push(order.id);
+        return {
+          ...order,
+          orderStatus: 'ready' as OrderStatus,
+        };
+      }
+    }
+    return order;
+  });
+
+  return { updatedOrders, changedIds };
+}
+
 export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
@@ -78,7 +108,14 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const savedServices = localStorage.getItem(LOCAL_STORAGE_KEY_SERVICES);
 
       if (savedOrders !== null) {
-        setOrders(JSON.parse(savedOrders));
+        const parsed: Order[] = JSON.parse(savedOrders);
+        const { updatedOrders, changedIds } = checkAndAutoAdvanceOrders(parsed);
+        setOrders(updatedOrders);
+        if (changedIds.length > 0) {
+          changedIds.forEach((id) => {
+            updateOrderStatusInSupabase(id, 'ready').catch(() => {});
+          });
+        }
       }
       if (savedServices !== null) {
         setServices(JSON.parse(savedServices));
@@ -98,11 +135,17 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getServicesFromSupabase(),
       ]);
 
-      // If cloudOrders is returned (even empty array [] when all orders deleted), sync with cloud
+      // If cloudOrders is returned, check for auto-advance to 'ready'
       if (cloudOrders !== null) {
-        setOrders(cloudOrders);
-        localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(cloudOrders));
+        const { updatedOrders, changedIds } = checkAndAutoAdvanceOrders(cloudOrders);
+        setOrders(updatedOrders);
+        localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(updatedOrders));
         setIsCloudSynced(true);
+        if (changedIds.length > 0) {
+          changedIds.forEach((id) => {
+            updateOrderStatusInSupabase(id, 'ready').catch(() => {});
+          });
+        }
       }
       if (cloudServices !== null && cloudServices.length > 0) {
         setServices(cloudServices);
@@ -168,6 +211,34 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('Failed to save orders to localStorage', e);
     }
   }, [orders, isInitialized]);
+
+  // 4. Auto-advance orders that exceed their estimated leadtime to 'ready'
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const runAutoAdvance = () => {
+      setOrders((prev) => {
+        const { updatedOrders, changedIds } = checkAndAutoAdvanceOrders(prev);
+        if (changedIds.length > 0) {
+          changedIds.forEach((id) => {
+            updateOrderStatusInSupabase(id, 'ready').catch((err) =>
+              console.warn('[AutoAdvance] Supabase update error:', err)
+            );
+          });
+          try {
+            localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(updatedOrders));
+          } catch {}
+          return updatedOrders;
+        }
+        return prev;
+      });
+    };
+
+    runAutoAdvance();
+    const interval = setInterval(runAutoAdvance, 15000); // Check every 15 seconds
+
+    return () => clearInterval(interval);
+  }, [isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -301,12 +372,30 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const getOrderByIdOrInvoice = (query: string): Order | undefined => {
     const q = query.trim().toLowerCase();
-    return orders.find(
+    const order = orders.find(
       (order) =>
         order.id.toLowerCase() === q ||
         order.invoice.toLowerCase() === q ||
         order.customer.phone.replace(/[^0-9]/g, '') === q.replace(/[^0-9]/g, '')
     );
+    if (!order) return undefined;
+
+    // Check if ongoing order has exceeded leadtime
+    const isOngoing =
+      order.orderStatus === 'washing' ||
+      order.orderStatus === 'drying' ||
+      order.orderStatus === 'ironing' ||
+      order.orderStatus === 'queue';
+
+    if (isOngoing && order.estimatedCompletion) {
+      const completionTime = new Date(order.estimatedCompletion).getTime();
+      if (!isNaN(completionTime) && completionTime <= Date.now()) {
+        updateOrderStatus(order.id, 'ready');
+        return { ...order, orderStatus: 'ready' };
+      }
+    }
+
+    return order;
   };
 
   const addService = (serviceData: Omit<Service, 'id'>) => {

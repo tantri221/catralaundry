@@ -309,8 +309,14 @@ export default function OrdersPage() {
                       Masuk: <FormattedDate date={order.createdAt} />
                     </p>
                     {order.estimatedCompletion && (
-                      <p className="text-amber-800 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <p
+                        className={`font-semibold flex items-center gap-1 px-2 py-0.5 rounded-md border ${
+                          isReady
+                            ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                            : 'text-amber-800 bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
                         <span>Estimasi Selesai: <FormattedDate date={order.estimatedCompletion} /></span>
                       </p>
                     )}
