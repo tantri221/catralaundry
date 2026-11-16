@@ -81,9 +81,13 @@ export default function PosPage() {
   // Quantity stepper for selected service
   const adjustQuantity = (delta: number) => {
     setQuantity((prev) => {
-      const step = selectedService?.unit === 'kg' ? 0.5 : 1;
-      const nextVal = prev + delta;
-      return Math.max(step, Math.round(nextVal * 10) / 10);
+      if (selectedService?.unit === 'kg') {
+        const nextVal = prev + delta;
+        return Math.max(0.1, Math.round(nextVal * 10) / 10);
+      } else {
+        const nextVal = Math.round(prev) + delta;
+        return Math.max(1, nextVal);
+      }
     });
   };
 
@@ -95,6 +99,10 @@ export default function PosPage() {
     if (!selectedService) return;
     if (quantity <= 0) {
       alert('Jumlah atau berat cucian harus lebih dari 0!');
+      return;
+    }
+    if (selectedService.unit !== 'kg' && quantity < 1) {
+      alert(`Minimal order untuk satuan ${selectedService.unit} adalah 1!`);
       return;
     }
 
@@ -154,6 +162,10 @@ export default function PosPage() {
     // If cart is empty, auto-include the configured service from the tool
     if (finalItems.length === 0) {
       if (selectedService && quantity > 0) {
+        if (selectedService.unit !== 'kg' && quantity < 1) {
+          alert(`Minimal order untuk satuan ${selectedService.unit} adalah 1!`);
+          return;
+        }
         finalItems.push({
           id: `item-${Date.now()}`,
           serviceId: selectedService.id,
@@ -427,9 +439,18 @@ export default function PosPage() {
                       <input
                         type="number"
                         step={selectedService.unit === 'kg' ? '0.1' : '1'}
-                        min="0.1"
-                        value={quantity}
-                        onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+                        min={selectedService.unit === 'kg' ? '0.1' : '1'}
+                        value={quantity === 0 ? '' : quantity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setQuantity(0);
+                            return;
+                          }
+                          const parsed =
+                            selectedService.unit === 'kg' ? parseFloat(val) : parseInt(val, 10);
+                          setQuantity(isNaN(parsed) ? 0 : parsed);
+                        }}
                         className="w-24 text-center text-2xl font-black text-slate-900 bg-white border border-slate-300 rounded-xl py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono shadow-xs"
                       />
                       <span className="absolute right-2 bottom-1.5 text-[10px] font-bold text-slate-400 uppercase pointer-events-none">
