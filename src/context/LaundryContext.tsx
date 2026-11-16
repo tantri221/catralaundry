@@ -56,11 +56,11 @@ interface LaundryContextType {
 
 const LaundryContext = createContext<LaundryContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY_ORDERS = 'catra_laundry_orders_v2';
-const LOCAL_STORAGE_KEY_SERVICES = 'catra_laundry_services_v2';
+const LOCAL_STORAGE_KEY_ORDERS = 'catra_laundry_orders_v3';
+const LOCAL_STORAGE_KEY_SERVICES = 'catra_laundry_services_v3';
 
 export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
@@ -68,13 +68,16 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // 1. Initial local restore
   useEffect(() => {
     try {
+      // Clear legacy v2 cache that contained dummy orders
+      localStorage.removeItem('catra_laundry_orders_v2');
+
       const savedOrders = localStorage.getItem(LOCAL_STORAGE_KEY_ORDERS);
       const savedServices = localStorage.getItem(LOCAL_STORAGE_KEY_SERVICES);
 
-      if (savedOrders) {
+      if (savedOrders !== null) {
         setOrders(JSON.parse(savedOrders));
       }
-      if (savedServices) {
+      if (savedServices !== null) {
         setServices(JSON.parse(savedServices));
       }
     } catch (e) {
@@ -92,12 +95,13 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getServicesFromSupabase(),
       ]);
 
-      if (cloudOrders && cloudOrders.length > 0) {
+      // If cloudOrders is returned (even empty array [] when all orders deleted), sync with cloud
+      if (cloudOrders !== null) {
         setOrders(cloudOrders);
         localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(cloudOrders));
         setIsCloudSynced(true);
       }
-      if (cloudServices && cloudServices.length > 0) {
+      if (cloudServices !== null && cloudServices.length > 0) {
         setServices(cloudServices);
         localStorage.setItem(LOCAL_STORAGE_KEY_SERVICES, JSON.stringify(cloudServices));
       }
@@ -279,7 +283,13 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteOrder = (orderId: string) => {
-    setOrders((prev) => prev.filter((o) => o.id !== orderId && o.invoice !== orderId));
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId && o.invoice !== orderId);
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY_ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     removeOrderFromSupabase(orderId).catch((err) =>
       console.warn('Supabase removeOrder error:', err)
     );
