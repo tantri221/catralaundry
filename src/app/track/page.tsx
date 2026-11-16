@@ -10,6 +10,7 @@ import {
   PAYMENT_STATUS_DETAILS,
 } from '@/lib/constants';
 import { FormattedDate } from '@/components/FormattedDate';
+import { EstimatedCompletionBadge } from '@/components/EstimatedCompletionBadge';
 import { OrderStatus } from '@/types/laundry';
 import {
   Search,
@@ -243,9 +244,8 @@ function TrackContent() {
                     </span>
                   </div>
 
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1 pt-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Estimasi Selesai: <FormattedDate date={searchedOrder.estimatedCompletion} /></span>
+                  <div className="pt-2 border-t border-slate-100">
+                    <EstimatedCompletionBadge order={searchedOrder} />
                   </div>
                 </div>
               </div>
