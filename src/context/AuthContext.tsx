@@ -164,6 +164,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addUser = (userData: Omit<UserAccount, 'id'>) => {
     const trimmedUsername = userData.username.trim().toLowerCase();
 
+    if (trimmedUsername === 'superadmin') {
+      return { success: false, message: 'Username "superadmin" diproteksi oleh sistem!' };
+    }
+
     if (users.some((u) => u.username.toLowerCase() === trimmedUsername)) {
       return { success: false, message: `Username "${userData.username}" sudah digunakan!` };
     }
@@ -182,8 +186,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = (id: string, updatedData: Partial<UserAccount>) => {
+    if (id === 'usr-superadmin') {
+      return { success: false, message: 'Akun Super Admin sistem diproteksi dan tidak dapat diubah di sini!' };
+    }
+
     if (updatedData.username) {
       const trimmedUsername = updatedData.username.trim().toLowerCase();
+      if (trimmedUsername === 'superadmin') {
+        return { success: false, message: 'Username "superadmin" diproteksi oleh sistem!' };
+      }
       if (users.some((u) => u.id !== id && u.username.toLowerCase() === trimmedUsername)) {
         return { success: false, message: `Username "${updatedData.username}" sudah digunakan oleh pengguna lain!` };
       }
@@ -222,6 +233,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteUser = (id: string) => {
+    const target = users.find((u) => u.id === id);
+    if (id === 'usr-superadmin' || target?.username.toLowerCase() === 'superadmin') {
+      return { success: false, message: 'Akun Super Admin sistem diproteksi dan tidak dapat dihapus!' };
+    }
+
     if (user && user.id === id) {
       return { success: false, message: 'Anda tidak dapat menghapus akun Anda sendiri yang sedang aktif!' };
     }

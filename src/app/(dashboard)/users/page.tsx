@@ -63,6 +63,11 @@ export default function UsersManagementPage() {
     );
   }
 
+  // Sembunyikan akun superadmin dari menu kelola pengguna
+  const visibleUsers = users.filter(
+    (u) => u.username.toLowerCase() !== 'superadmin' && u.id !== 'usr-superadmin'
+  );
+
   const openAddModal = () => {
     setEditingUserId(null);
     setName('');
@@ -93,6 +98,11 @@ export default function UsersManagementPage() {
 
     if (!name.trim() || !username.trim()) {
       setFeedback({ type: 'error', message: 'Nama dan username wajib diisi!' });
+      return;
+    }
+
+    if (username.trim().toLowerCase() === 'superadmin') {
+      setFeedback({ type: 'error', message: 'Username "superadmin" diproteksi oleh sistem!' });
       return;
     }
 
@@ -216,7 +226,7 @@ export default function UsersManagementPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
           <h2 className="font-bold text-sm text-slate-800">
-            Daftar Akun Terdaftar ({users.length})
+            Daftar Akun Terdaftar ({visibleUsers.length})
           </h2>
           <span className="text-[11px] text-slate-400">
             Login sebagai: <strong className="text-slate-700">{currentUser?.name}</strong>
@@ -236,7 +246,7 @@ export default function UsersManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map((item) => {
+              {visibleUsers.map((item) => {
                 const isCurrent = currentUser?.id === item.id;
                 const isAdmin = item.role === 'admin';
 
