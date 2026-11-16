@@ -12,12 +12,13 @@ import {
   ArrowRight,
   AlertCircle,
   Search,
+  ShieldAlert,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, sessionTerminatedReason, clearSessionTerminatedReason } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -32,18 +33,21 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    clearSessionTerminatedReason();
     setIsSubmitting(true);
 
-    const res = login(username, password);
-    setIsSubmitting(false);
-
-    if (res.success) {
-      router.push('/');
-    } else {
-      setErrorMessage(res.message || 'Login gagal.');
+    try {
+      const res = await login(username, password);
+      if (res.success) {
+        router.push('/');
+      } else {
+        setErrorMessage(res.message || 'Login gagal.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -76,6 +80,16 @@ export default function LoginPage() {
             <h2 className="font-bold text-lg text-slate-800">Login Petugas</h2>
             <p className="text-xs text-slate-500">Masukkan username dan kata sandi Anda</p>
           </div>
+
+          {sessionTerminatedReason && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900 text-xs">
+              <ShieldAlert className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+              <div className="flex-1 space-y-0.5">
+                <span className="font-bold text-amber-950 block">Sesi Login Dialihkan</span>
+                <span className="text-amber-800 leading-snug block">{sessionTerminatedReason}</span>
+              </div>
+            </div>
+          )}
 
           {errorMessage && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-700 text-xs font-medium">

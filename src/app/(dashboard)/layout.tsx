@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
-import { Menu, X, Plus, LogOut, ShieldCheck, User } from 'lucide-react';
+import { Menu, X, Plus, LogOut, ShieldCheck, User, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
@@ -13,15 +13,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, sessionTerminatedReason, clearSessionTerminatedReason } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Route protection
+  // Route protection: redirect to login if not authenticated and not showing session terminated dialog
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !sessionTerminatedReason) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, sessionTerminatedReason, router]);
 
   const handleLogout = () => {
     if (confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
@@ -117,6 +117,36 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Modal Notifikasi Sesi Diambil Alih oleh Perangkat Lain */}
+      {sessionTerminatedReason && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Sesi Login Berakhir</h3>
+              <p className="text-xs text-slate-500 mt-1">Perangkat Lain Telah Mengakses Akun Ini</p>
+            </div>
+            <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200/80 text-left text-xs text-amber-900 space-y-1.5">
+              <p className="font-semibold leading-relaxed">{sessionTerminatedReason}</p>
+              <p className="text-[11px] text-amber-700">
+                Sistem Catra Laundry membatasi akses 1 perangkat aktif per akun guna menjaga keakuratan kas & pencatatan nota kasir.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                clearSessionTerminatedReason();
+                router.push('/login');
+              }}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-md active:scale-98 cursor-pointer"
+            >
+              Kembali ke Halaman Login
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

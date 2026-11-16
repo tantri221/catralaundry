@@ -1,16 +1,23 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, UserAccount, AuthState } from '@/types/auth';
+import { supabase } from '@/lib/supabase';
 import {
   getStaffUsersFromSupabase,
   saveStaffUserToSupabase,
   removeStaffUserFromSupabase,
+  saveUserActiveSession,
+  getUserActiveSession,
+  clearUserActiveSession,
 } from '@/lib/supabaseService';
 
 interface AuthContextType extends AuthState {
   users: UserAccount[];
-  login: (username: string, password: string) => { success: boolean; message?: string };
+  sessionToken: string | null;
+  sessionTerminatedReason: string | null;
+  clearSessionTerminatedReason: () => void;
+  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   addUser: (userData: Omit<UserAccount, 'id'>) => { success: boolean; message?: string };
   updateUser: (id: string, updatedData: Partial<UserAccount>) => { success: boolean; message?: string };
@@ -57,10 +64,32 @@ export const DEFAULT_USERS: UserAccount[] = [
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY_AUTH_SESSION = 'catra_auth_user_session';
+const STORAGE_KEY_SESSION_TOKEN = 'catra_auth_session_token';
 const STORAGE_KEY_USERS = 'catra_user_accounts_v5';
+const STORAGE_KEY_TERMINATED = 'catra_session_terminated_reason';
+
+function getDeviceSummary(): string {
+  if (typeof window === 'undefined') return 'Perangkat';
+  const ua = navigator.userAgent;
+  let dev = 'Laptop / PC';
+  if (/android/i.test(ua)) dev = 'HP Android';
+  else if (/iPhone|iPad|iPod/i.test(ua)) dev = 'iPhone / iPad';
+  else if (/Macintosh/i.test(ua)) dev = 'MacBook / Mac';
+  else if (/Windows/i.test(ua)) dev = 'Windows PC/Laptop';
+
+  let browser = 'Browser';
+  if (/chrome|crios/i.test(ua) && !/edge|edg/i.test(ua)) browser = 'Chrome';
+  else if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) browser = 'Safari';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/edge|edg/i.test(ua)) browser = 'Edge';
+
+  return `${dev} (${browser})`;
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -93,13 +122,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
       }
 
+      const savedTerminated = localStorage.getItem(STORAGE_KEY_TERMINATED);
+      if (savedTerminated) {
+        setSessionTerminatedReason(savedTerminated);
+      }
+
       const savedSession = localStorage.getItem(STORAGE_KEY_AUTH_SESSION);
+      let savedToken = localStorage.getItem(STORAGE_KEY_SESSION_TOKEN);
+
       if (savedSession) {
         const parsedSession: User = JSON.parse(savedSession);
         if (parsedSession.username?.toLowerCase() === 'superadmin' || parsedSession.id === 'usr-superadmin') {
           parsedSession.role = 'superadmin';
         }
         setUser(parsedSession);
+
+        if (!savedToken) {
+          savedToken = `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+          localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, savedToken);
+          saveUserActiveSession(parsedSession.username, savedToken, getDeviceSummary()).catch(() => {});
+        }
+        setSessionToken(savedToken);
       }
     } catch (e) {
       console.warn('Failed to parse auth data', e);
@@ -125,6 +168,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUsers();
   }, []);
 
+  const clearSessionTerminatedReason = useCallback(() => {
+    setSessionTerminatedReason(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY_TERMINATED);
+    } catch {}
+  }, []);
+
+  const handleKickOut = useCallback((remoteDeviceInfo?: string) => {
+    const reasonMsg = `Akun "${user?.name || user?.username || 'ini'}" baru saja login di perangkat lain (${
+      remoteDeviceInfo || 'HP / Komputer lain'
+    }). Demi keamanan, sistem Catra Laundry membatasi akses akun hanya untuk 1 perangkat pada saat bersamaan.`;
+
+    setUser(null);
+    setSessionToken(null);
+    setSessionTerminatedReason(reasonMsg);
+
+    try {
+      localStorage.removeItem(STORAGE_KEY_AUTH_SESSION);
+      localStorage.removeItem(STORAGE_KEY_SESSION_TOKEN);
+      localStorage.setItem(STORAGE_KEY_TERMINATED, reasonMsg);
+    } catch {}
+  }, [user]);
+
+  // Single Device Enforcement: Supabase Realtime Broadcast & Polling
+  useEffect(() => {
+    if (!user || !sessionToken) return;
+
+    let isSubscribed = true;
+
+    // 1. Supabase Realtime Broadcast Channel (Instant Notification)
+    const authChannel = supabase.channel('catra_auth_sessions', {
+      config: { broadcast: { self: false } },
+    });
+
+    authChannel
+      .on('broadcast', { event: 'session_replaced' }, (eventPayload) => {
+        if (!isSubscribed) return;
+        const data = eventPayload?.payload;
+        if (!data) return;
+
+        const currentCleanUser = user.username.trim().toLowerCase();
+        const incomingCleanUser = String(data.username || '').trim().toLowerCase();
+
+        // Check if other device logged in with the same username but different session token
+        if (
+          currentCleanUser === incomingCleanUser &&
+          data.newSessionToken &&
+          data.newSessionToken !== sessionToken
+        ) {
+          console.warn('[Auth] Realtime session replaced by:', data.deviceInfo);
+          handleKickOut(data.deviceInfo);
+        }
+      })
+      .subscribe();
+
+    // 2. Database verification check (Persistent Cloud Check)
+    const verifySessionWithDatabase = async () => {
+      if (!isSubscribed || !user || !sessionToken) return;
+      try {
+        const remote = await getUserActiveSession(user.username);
+        if (remote && remote.sessionToken && remote.sessionToken !== sessionToken) {
+          console.warn('[Auth] Database check: session mismatch. Kicking out.');
+          handleKickOut(remote.deviceInfo);
+        }
+      } catch {
+        // Silently catch network errors
+      }
+    };
+
+    // Verify on mount and periodically every 10 seconds
+    const intervalId = setInterval(verifySessionWithDatabase, 10000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        verifySessionWithDatabase();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', verifySessionWithDatabase);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', verifySessionWithDatabase);
+      supabase.removeChannel(authChannel);
+    };
+  }, [user, sessionToken, handleKickOut]);
+
   const saveUsersList = (updatedList: UserAccount[]) => {
     setUsers(updatedList);
     try {
@@ -134,7 +267,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = (usernameInput: string, passwordInput: string) => {
+  const login = async (usernameInput: string, passwordInput: string) => {
     const trimmedUser = usernameInput.trim().toLowerCase();
     const matched = users.find(
       (u) => u.username.toLowerCase() === trimmedUser && u.password === passwordInput
@@ -152,13 +285,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdAt: matched.createdAt,
       };
 
-      setUser(authUser);
-      localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(authUser));
+      const newSessionToken = `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+      const deviceInfo = getDeviceSummary();
 
-      if (matched.outletId && matched.outletId !== 'all') {
-        try {
+      setUser(authUser);
+      setSessionToken(newSessionToken);
+      setSessionTerminatedReason(null);
+
+      try {
+        localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(authUser));
+        localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, newSessionToken);
+        localStorage.removeItem(STORAGE_KEY_TERMINATED);
+
+        if (matched.outletId && matched.outletId !== 'all') {
           localStorage.setItem('catra_laundry_active_outlet_id_v2', matched.outletId);
-        } catch {}
+        }
+      } catch {}
+
+      // Save to Supabase Cloud & Broadcast to other devices
+      try {
+        await saveUserActiveSession(matched.username, newSessionToken, deviceInfo);
+
+        const channel = supabase.channel('catra_auth_sessions');
+        await channel.subscribe();
+        await channel.send({
+          type: 'broadcast',
+          event: 'session_replaced',
+          payload: {
+            username: matched.username,
+            newSessionToken,
+            deviceInfo,
+          },
+        });
+      } catch (err) {
+        console.warn('[AuthProvider] Cloud session registration error:', err);
       }
 
       return { success: true };
@@ -171,8 +331,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    if (user && sessionToken) {
+      clearUserActiveSession(user.username, sessionToken).catch(() => {});
+    }
     setUser(null);
-    localStorage.removeItem(STORAGE_KEY_AUTH_SESSION);
+    setSessionToken(null);
+    setSessionTerminatedReason(null);
+    try {
+      localStorage.removeItem(STORAGE_KEY_AUTH_SESSION);
+      localStorage.removeItem(STORAGE_KEY_SESSION_TOKEN);
+      localStorage.removeItem(STORAGE_KEY_TERMINATED);
+    } catch {}
   };
 
   const addUser = (userData: Omit<UserAccount, 'id'>) => {
@@ -277,6 +446,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         users,
+        sessionToken,
+        sessionTerminatedReason,
+        clearSessionTerminatedReason,
         isAuthenticated: !!user,
         isLoading,
         login,

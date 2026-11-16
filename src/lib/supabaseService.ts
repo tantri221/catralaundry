@@ -287,7 +287,12 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
     }
     if (!data || data.length === 0) return null;
 
-    return data.map((row: any) => ({
+    // Filter out session records that are prefixed with sess_ or __sess_
+    const actualUsers = data.filter(
+      (row: any) => !String(row.id || '').startsWith('sess_') && !String(row.username || '').startsWith('__sess_')
+    );
+
+    return actualUsers.map((row: any) => ({
       id: row.id,
       username: row.username,
       password: row.password,
@@ -348,6 +353,82 @@ export async function removeStaffUserFromSupabase(id: string): Promise<boolean> 
     return true;
   } catch (err) {
     console.warn('[Supabase] removeStaffUser exception:', err);
+    return false;
+  }
+}
+
+// ========================
+// SINGLE DEVICE SESSION MANAGEMENT
+// ========================
+export async function saveUserActiveSession(
+  username: string,
+  sessionToken: string,
+  deviceInfo: string = 'Perangkat'
+): Promise<boolean> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const payload = {
+      id: `sess_${cleanUser}`,
+      username: `__sess_${cleanUser}`,
+      password: sessionToken,
+      full_name: deviceInfo,
+      phone: '',
+      role: 'kasir',
+      outlet_id: null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('staff_users').upsert(payload);
+    if (error) {
+      console.warn('[Supabase] saveUserActiveSession error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Supabase] saveUserActiveSession exception:', err);
+    return false;
+  }
+}
+
+export async function getUserActiveSession(
+  username: string
+): Promise<{ sessionToken: string; deviceInfo?: string } | null> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('staff_users')
+      .select('password, full_name')
+      .eq('id', `sess_${cleanUser}`)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      sessionToken: data.password,
+      deviceInfo: data.full_name,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearUserActiveSession(username: string, currentSessionToken?: string): Promise<boolean> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    if (currentSessionToken) {
+      // Only clear if the remote session token matches our current token (don't clear if another device has already logged in!)
+      const remote = await getUserActiveSession(cleanUser);
+      if (remote && remote.sessionToken !== currentSessionToken) {
+        return true; // Already taken over by newer session
+      }
+    }
+
+    const { error } = await supabase.from('staff_users').delete().eq('id', `sess_${cleanUser}`);
+    return !error;
+  } catch {
     return false;
   }
 }
