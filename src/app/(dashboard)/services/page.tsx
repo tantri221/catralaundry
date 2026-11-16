@@ -165,13 +165,13 @@ export default function ServicesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-            <span>Paket & Tarif Layanan</span>
+            <span>Daftar Paket Layanan</span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               {services.length} Layanan
             </span>
           </h1>
           <p className="text-slate-500 text-sm">
-            Kelola daftar tarif, estimasi waktu pengerjaan, dan satuan hitung untuk kasir POS
+            Kelola daftar paket layanan, tarif harga, estimasi waktu pengerjaan, dan satuan hitung untuk kasir POS
           </p>
         </div>
         <button

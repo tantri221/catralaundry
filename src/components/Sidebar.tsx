@@ -67,7 +67,7 @@ export const Sidebar: React.FC = () => {
             adminOnly: true,
           },
           {
-            label: 'Daftar Harga & Tarif',
+            label: 'Daftar Paket Layanan',
             href: '/services',
             icon: Tag,
             adminOnly: true,
