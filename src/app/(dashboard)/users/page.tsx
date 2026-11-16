@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   ArrowLeft,
   Store,
-  Crown,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -51,7 +50,7 @@ export default function UsersManagementPage() {
         </div>
         <h2 className="text-xl font-bold text-slate-800">Akses Terbatas</h2>
         <p className="text-xs text-slate-500">
-          Halaman ini khusus untuk Administrator dan Super Admin. Akun Anda saat ini memiliki peran Kasir.
+          Halaman ini khusus untuk Administrator. Akun Anda saat ini memiliki peran Kasir.
         </p>
         <Link
           href="/"
@@ -64,14 +63,14 @@ export default function UsersManagementPage() {
     );
   }
 
-  // Wewenang Akses:
-  // - Super Admin: Memiliki otoritas penuh melihat dan mengelola seluruh akun (termasuk superadmin).
-  // - Administrator: Hanya mengelola Kasir dan Admin biasa. Akun Super Admin disembunyikan agar aman.
-  const isSuperAdmin = currentUser?.role === 'superadmin';
-  const visibleUsers = users.filter((u) => {
-    if (isSuperAdmin) return true;
-    return u.role !== 'superadmin' && u.username.toLowerCase() !== 'superadmin' && u.id !== 'usr-superadmin';
-  });
+  // Pada menu kelola akun, yang ditampilkan HANYA akun dengan wewenang Administrator dan Kasir/Staff saja.
+  // Akun Super Admin tidak ditampilkan di daftar kelola akun.
+  const visibleUsers = users.filter(
+    (u) =>
+      (u.role === 'admin' || u.role === 'kasir') &&
+      u.username.toLowerCase() !== 'superadmin' &&
+      u.id !== 'usr-superadmin'
+  );
 
   const openAddModal = () => {
     setEditingUserId(null);
@@ -86,15 +85,15 @@ export default function UsersManagementPage() {
   };
 
   const openEditModal = (targetUser: UserAccount) => {
-    if (targetUser.role === 'superadmin' && !isSuperAdmin) {
-      setFeedback({ type: 'error', message: 'Hanya Super Admin yang berwenang mengubah akun Super Admin!' });
+    if (targetUser.role === 'superadmin' || targetUser.username.toLowerCase() === 'superadmin') {
+      setFeedback({ type: 'error', message: 'Akun Super Admin diproteksi dan tidak dapat diubah di sini!' });
       return;
     }
     setEditingUserId(targetUser.id);
     setName(targetUser.name);
     setUsername(targetUser.username);
     setPhone(targetUser.phone || '');
-    setRole(targetUser.role);
+    setRole(targetUser.role === 'admin' ? 'admin' : 'kasir');
     setSelectedOutletId(targetUser.outletId || outlets[0]?.id || 'out-1');
     setPassword(''); // biarkan kosong jika tidak ingin ganti password
     setFeedback(null);
@@ -112,8 +111,8 @@ export default function UsersManagementPage() {
       return;
     }
 
-    if (!isSuperAdmin && (role === 'superadmin' || cleanUsername === 'superadmin')) {
-      setFeedback({ type: 'error', message: 'Hanya Super Admin yang berwenang membuat atau menetapkan role Super Admin!' });
+    if (cleanUsername === 'superadmin' || role === 'superadmin') {
+      setFeedback({ type: 'error', message: 'Username atau role "superadmin" diproteksi oleh sistem!' });
       return;
     }
 
@@ -128,10 +127,9 @@ export default function UsersManagementPage() {
     }
 
     // Tentukan penempatan cabang
-    const finalOutletId = role === 'superadmin' ? 'all' : selectedOutletId;
     let assignedOutletName = 'Semua Cabang';
-    if (finalOutletId !== 'all') {
-      const found = outlets.find((o) => o.id === finalOutletId);
+    if (selectedOutletId !== 'all') {
+      const found = outlets.find((o) => o.id === selectedOutletId);
       if (found) assignedOutletName = found.name;
     }
 
@@ -141,8 +139,8 @@ export default function UsersManagementPage() {
         name,
         username: cleanUsername,
         phone: phone.trim(),
-        role,
-        outletId: finalOutletId,
+        role: role === 'admin' ? 'admin' : 'kasir',
+        outletId: selectedOutletId,
         outletName: assignedOutletName,
       };
       if (password.trim()) {
@@ -157,13 +155,13 @@ export default function UsersManagementPage() {
         setFeedback({ type: 'error', message: res.message || 'Gagal memperbarui pengguna.' });
       }
     } else {
-      // Tambah pengguna baru
+      // Tambah pengguna baru (Administrator atau Kasir/Staff)
       const res = addUser({
         name,
         username: cleanUsername,
         phone: phone.trim(),
-        role,
-        outletId: finalOutletId,
+        role: role === 'admin' ? 'admin' : 'kasir',
+        outletId: selectedOutletId,
         outletName: assignedOutletName,
         password: password.trim(),
       });
@@ -179,10 +177,8 @@ export default function UsersManagementPage() {
 
   const handleDelete = (target: UserAccount) => {
     if (target.role === 'superadmin' || target.username.toLowerCase() === 'superadmin') {
-      if (!isSuperAdmin) {
-        setFeedback({ type: 'error', message: 'Anda tidak memiliki wewenang untuk menghapus akun Super Admin!' });
-        return;
-      }
+      setFeedback({ type: 'error', message: 'Akun Super Admin diproteksi dan tidak dapat dihapus!' });
+      return;
     }
 
     if (confirm(`Apakah Anda yakin ingin menghapus akun "${target.name}" (@${target.username})?`)) {
@@ -202,10 +198,10 @@ export default function UsersManagementPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-blue-600" />
-            Kelola Pengguna & Wewenang Akun
+            Kelola Pengguna & Akun Staf
           </h1>
           <p className="text-slate-500 text-xs md:text-sm mt-0.5">
-            Manajemen hak akses Super Admin, Administrator, dan Kasir serta penempatan cabang operasional Catra Laundry
+            Manajemen akun Administrator dan Kasir/Staff serta penempatan cabang operasional Catra Laundry
           </p>
         </div>
 
@@ -245,18 +241,12 @@ export default function UsersManagementPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
           <h2 className="font-bold text-sm text-slate-800">
-            Daftar Akun Terdaftar ({visibleUsers.length})
+            Daftar Akun Administrator & Kasir ({visibleUsers.length})
           </h2>
           <span className="text-[11px] text-slate-400">
             Login sebagai: <strong className="text-slate-700">{currentUser?.name}</strong>{' '}
-            <span
-              className={`ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                isSuperAdmin
-                  ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                  : 'bg-blue-100 text-blue-700 border border-blue-200'
-              }`}
-            >
-              {isSuperAdmin ? 'Super Admin' : 'Admin'}
+            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-blue-100 text-blue-700 border border-blue-200">
+              {currentUser?.role === 'superadmin' ? 'Super Admin' : currentUser?.role === 'admin' ? 'Administrator' : 'Kasir'}
             </span>
           </span>
         </div>
@@ -276,8 +266,7 @@ export default function UsersManagementPage() {
             <tbody className="divide-y divide-slate-100">
               {visibleUsers.map((item) => {
                 const isCurrent = currentUser?.id === item.id;
-                const isItemSuper = item.role === 'superadmin';
-                const isItemAdmin = item.role === 'admin';
+                const isAdmin = item.role === 'admin';
 
                 return (
                   <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
@@ -286,16 +275,12 @@ export default function UsersManagementPage() {
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-                            isItemSuper
-                              ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                              : isItemAdmin
+                            isAdmin
                               ? 'bg-blue-100 text-blue-700 border border-blue-200'
                               : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                           }`}
                         >
-                          {isItemSuper ? (
-                            <Crown className="w-4 h-4 text-purple-600" />
-                          ) : isItemAdmin ? (
+                          {isAdmin ? (
                             <ShieldCheck className="w-4 h-4 text-blue-600" />
                           ) : (
                             <UserIcon className="w-4 h-4 text-emerald-600" />
@@ -323,24 +308,13 @@ export default function UsersManagementPage() {
                     {/* Role / Wewenang */}
                     <td className="py-4 px-4">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          isItemSuper
-                            ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                            : isItemAdmin
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          isAdmin
                             ? 'bg-blue-100 text-blue-800 border border-blue-200'
                             : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                         }`}
                       >
-                        {isItemSuper ? (
-                          <>
-                            <Crown className="w-3.5 h-3.5 text-purple-600" />
-                            <span>Super Admin</span>
-                          </>
-                        ) : isItemAdmin ? (
-                          'Administrator'
-                        ) : (
-                          'Kasir'
-                        )}
+                        {isAdmin ? 'Administrator' : 'Kasir / Staff'}
                       </span>
                     </td>
 
@@ -349,9 +323,7 @@ export default function UsersManagementPage() {
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
                         <Store className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <span className="truncate max-w-[200px]">
-                          {isItemSuper
-                            ? '🌐 Akses Semua Cabang (Master)'
-                            : item.outletName || (item.outletId === 'all' ? 'Semua Cabang' : 'Outlet Pusat')}
+                          {item.outletName || (item.outletId === 'all' ? 'Semua Cabang' : 'Outlet Pusat')}
                         </span>
                       </span>
                     </td>
@@ -372,7 +344,7 @@ export default function UsersManagementPage() {
                           <Edit2 className="w-4 h-4" />
                         </button>
 
-                        {!isCurrent && (!isItemSuper || isSuperAdmin) && (
+                        {!isCurrent && (
                           <button
                             onClick={() => handleDelete(item)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
@@ -398,7 +370,7 @@ export default function UsersManagementPage() {
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                 {editingUserId ? <Edit2 className="w-4 h-4 text-blue-600" /> : <UserPlus className="w-4 h-4 text-blue-600" />}
-                {editingUserId ? 'Ubah Data & Wewenang Pengguna' : 'Tambah Pengguna Baru'}
+                {editingUserId ? 'Ubah Data Pengguna' : 'Tambah Pengguna Baru'}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -466,90 +438,57 @@ export default function UsersManagementPage() {
               {/* Peran / Wewenang (Role Akses) */}
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  Tingkat Wewenang (Role) <span className="text-rose-500">*</span>
+                  Wewenang Akun (Role) <span className="text-rose-500">*</span>
                 </label>
-                <div className={`grid gap-2 ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setRole('kasir')}
-                    className={`py-2 px-2.5 rounded-xl border font-bold text-center transition-all text-xs ${
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition-all text-xs ${
                       role === 'kasir'
                         ? 'bg-emerald-50 border-emerald-600 text-emerald-700 ring-2 ring-emerald-500/20'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    🧺 Kasir
+                    🧺 Kasir / Staff
                   </button>
                   <button
                     type="button"
                     onClick={() => setRole('admin')}
-                    className={`py-2 px-2.5 rounded-xl border font-bold text-center transition-all text-xs ${
+                    className={`py-2 px-3 rounded-xl border font-bold text-center transition-all text-xs ${
                       role === 'admin'
                         ? 'bg-blue-50 border-blue-600 text-blue-700 ring-2 ring-blue-500/20'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
-                    🛡️ Admin
+                    🛡️ Administrator
                   </button>
-                  {isSuperAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRole('superadmin');
-                        setSelectedOutletId('all');
-                      }}
-                      className={`py-2 px-2.5 rounded-xl border font-bold text-center transition-all text-xs flex items-center justify-center gap-1 ${
-                        role === 'superadmin'
-                          ? 'bg-purple-50 border-purple-600 text-purple-700 ring-2 ring-purple-500/20'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Crown className="w-3.5 h-3.5 text-purple-600" />
-                      <span>Super Admin</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
-              {role === 'superadmin' && (
-                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-800 text-[11px] flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>
-                    <strong>Wewenang Penuh:</strong> Super Admin memiliki otoritas tertinggi atas seluruh cabang, tarif, dan seluruh akun.
-                  </span>
-                </div>
-              )}
-
               {/* Penempatan Cabang / Outlet */}
-              {role !== 'superadmin' ? (
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Penempatan Cabang / Outlet <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Store className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                    <select
-                      value={selectedOutletId}
-                      onChange={(e) => setSelectedOutletId(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold bg-white"
-                    >
-                      {role === 'admin' && (
-                        <option value="all">🌐 Semua Cabang (Akses Seluruh Outlet)</option>
-                      )}
-                      {outlets.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.name} ({o.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Penempatan Cabang / Outlet <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <Store className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <select
+                    value={selectedOutletId}
+                    onChange={(e) => setSelectedOutletId(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs font-semibold bg-white"
+                  >
+                    {role === 'admin' && (
+                      <option value="all">🌐 Semua Cabang (Akses Seluruh Outlet)</option>
+                    )}
+                    {outlets.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name} ({o.code})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs flex items-center gap-2">
-                  <Store className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Penempatan Cabang: <strong>🌐 Semua Cabang (Akses Master)</strong></span>
-                </div>
-              )}
+              </div>
 
               {/* Password */}
               <div>
