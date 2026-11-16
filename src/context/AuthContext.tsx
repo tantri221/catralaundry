@@ -73,13 +73,13 @@ export const DEFAULT_USERS: UserAccount[] = [
   },
   {
     id: 'usr-kasir',
-    name: 'Kasir Outlet Pusat',
+    name: 'Kasir Outlet Seririt',
     username: 'kasir',
     password: 'kasir123',
     phone: '085712345678',
     role: 'kasir',
     outletId: 'out-1',
-    outletName: 'Catra Laundry - Outlet Pusat',
+    outletName: 'Catra Laundry - Seririt',
     createdAt: '2026-11-01T00:00:00.000Z',
   },
 ];

@@ -280,12 +280,23 @@ export async function removeOrderFromSupabase(id: string): Promise<boolean> {
 // ========================
 export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null> {
   try {
-    const { data, error } = await supabase.from('staff_users').select('*').order('created_at', { ascending: true });
+    const [{ data, error }, { data: outletsData }] = await Promise.all([
+      supabase.from('staff_users').select('*').order('created_at', { ascending: true }),
+      supabase.from('outlets').select('id, name, code'),
+    ]);
+
     if (error) {
       console.warn('[Supabase] getStaffUsers error:', error.message);
       return null;
     }
     if (!data || data.length === 0) return null;
+
+    const outletMap = new Map<string, string>();
+    if (outletsData) {
+      outletsData.forEach((o: any) => {
+        outletMap.set(o.id, o.name);
+      });
+    }
 
     // Filter out session and login request records that are prefixed with sess_ or login_req_ or __
     const actualUsers = data.filter(
@@ -295,17 +306,27 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
         !String(row.username || '').startsWith('__')
     );
 
-    return actualUsers.map((row: any) => ({
-      id: row.id,
-      username: row.username,
-      password: row.password,
-      name: row.full_name,
-      phone: row.phone,
-      role: (row.role === 'superadmin' || row.username === 'superadmin' ? 'superadmin' : row.role) as UserAccount['role'],
-      outletId: row.outlet_id || 'all',
-      outletName: row.outlet_id === 'out-2' ? 'Catra Laundry - Cabang Sudirman' : 'Catra Laundry - Outlet Pusat',
-      createdAt: row.created_at || new Date().toISOString(),
-    }));
+    return actualUsers.map((row: any) => {
+      const assignedOutletId = row.outlet_id || 'all';
+      let resolvedOutletName = 'Semua Cabang';
+      if (assignedOutletId !== 'all') {
+        resolvedOutletName =
+          outletMap.get(assignedOutletId) ||
+          (assignedOutletId === 'out-2' ? 'Catra Laundry - Banjar' : 'Catra Laundry - Seririt');
+      }
+
+      return {
+        id: row.id,
+        username: row.username,
+        password: row.password,
+        name: row.full_name,
+        phone: row.phone,
+        role: (row.role === 'superadmin' || row.username === 'superadmin' ? 'superadmin' : row.role) as UserAccount['role'],
+        outletId: assignedOutletId,
+        outletName: resolvedOutletName,
+        createdAt: row.created_at || new Date().toISOString(),
+      };
+    });
   } catch (err) {
     console.warn('[Supabase] getStaffUsers exception:', err);
     return null;
@@ -314,6 +335,7 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
 
 export async function saveStaffUserToSupabase(user: UserAccount): Promise<boolean> {
   try {
+    const cleanOutletId = !user.outletId || user.outletId === 'all' ? null : user.outletId;
     const payload = {
       id: user.id,
       username: user.username,
@@ -321,7 +343,7 @@ export async function saveStaffUserToSupabase(user: UserAccount): Promise<boolea
       full_name: user.name,
       phone: user.phone || '',
       role: user.role,
-      outlet_id: user.outletId === 'all' ? null : user.outletId,
+      outlet_id: cleanOutletId,
       is_active: true,
       created_at: user.createdAt || new Date().toISOString(),
     };

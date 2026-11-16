@@ -96,8 +96,15 @@ export default function UsersManagementPage() {
     setName(targetUser.name);
     setUsername(targetUser.username);
     setPhone(targetUser.phone || '');
-    setRole(targetUser.role === 'admin' ? 'admin' : 'kasir');
-    setSelectedOutletId(targetUser.outletId || outlets[0]?.id || 'out-1');
+    const userRole = targetUser.role === 'admin' ? 'admin' : 'kasir';
+    setRole(userRole);
+
+    if (userRole === 'admin' && (targetUser.outletId === 'all' || !targetUser.outletId)) {
+      setSelectedOutletId('all');
+    } else {
+      setSelectedOutletId(targetUser.outletId || outlets[0]?.id || 'out-1');
+    }
+
     setPassword(''); // biarkan kosong jika tidak ingin ganti password
     setFeedback(null);
     setIsModalOpen(true);
@@ -129,11 +136,19 @@ export default function UsersManagementPage() {
       return;
     }
 
-    // Tentukan penempatan cabang
+    // Tentukan penempatan cabang secara konsisten dan permanen
+    let assignedOutletId = selectedOutletId;
     let assignedOutletName = 'Semua Cabang';
-    if (selectedOutletId !== 'all') {
-      const found = outlets.find((o) => o.id === selectedOutletId);
-      if (found) assignedOutletName = found.name;
+
+    if (role === 'kasir' && assignedOutletId === 'all') {
+      assignedOutletId = outlets[0]?.id || 'out-1';
+    }
+
+    if (assignedOutletId !== 'all') {
+      const found = outlets.find((o) => o.id === assignedOutletId);
+      if (found) {
+        assignedOutletName = found.name;
+      }
     }
 
     if (editingUserId) {
@@ -143,7 +158,7 @@ export default function UsersManagementPage() {
         username: cleanUsername,
         phone: phone.trim(),
         role: role === 'admin' ? 'admin' : 'kasir',
-        outletId: selectedOutletId,
+        outletId: assignedOutletId,
         outletName: assignedOutletName,
       };
       if (password.trim()) {
@@ -152,7 +167,7 @@ export default function UsersManagementPage() {
 
       const res = updateUser(editingUserId, updatePayload);
       if (res.success) {
-        setFeedback({ type: 'success', message: 'Data pengguna berhasil diperbarui!' });
+        setFeedback({ type: 'success', message: 'Data penempatan cabang dan pengguna berhasil diperbarui!' });
         setIsModalOpen(false);
       } else {
         setFeedback({ type: 'error', message: res.message || 'Gagal memperbarui pengguna.' });
@@ -164,7 +179,7 @@ export default function UsersManagementPage() {
         username: cleanUsername,
         phone: phone.trim(),
         role: role === 'admin' ? 'admin' : 'kasir',
-        outletId: selectedOutletId,
+        outletId: assignedOutletId,
         outletName: assignedOutletName,
         password: password.trim(),
       });
@@ -354,12 +369,30 @@ export default function UsersManagementPage() {
 
                     {/* Branch / Outlet */}
                     <td className="py-4 px-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                        <Store className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span className="truncate max-w-[200px]">
-                          {item.outletName || (item.outletId === 'all' ? 'Semua Cabang' : 'Outlet Pusat')}
-                        </span>
-                      </span>
+                      {(() => {
+                        const isAll = item.outletId === 'all' || (!item.outletId && item.role === 'admin');
+                        const matchedOutlet = outlets.find((o) => o.id === item.outletId);
+                        const outletLabel = isAll
+                          ? '🌐 Semua Cabang'
+                          : matchedOutlet
+                          ? `${matchedOutlet.name} (${matchedOutlet.code})`
+                          : item.outletName || 'Cabang Belum Ditentukan';
+
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                              isAll
+                                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                : 'bg-slate-100 text-slate-800 border-slate-200'
+                            }`}
+                          >
+                            <Store className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[220px]" title={outletLabel}>
+                              {outletLabel}
+                            </span>
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     {/* Phone Number */}
@@ -477,7 +510,12 @@ export default function UsersManagementPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setRole('kasir')}
+                    onClick={() => {
+                      setRole('kasir');
+                      if (selectedOutletId === 'all') {
+                        setSelectedOutletId(outlets[0]?.id || 'out-1');
+                      }
+                    }}
                     className={`py-2 px-3 rounded-xl border font-bold text-center transition-all text-xs ${
                       role === 'kasir'
                         ? 'bg-emerald-50 border-emerald-600 text-emerald-700 ring-2 ring-emerald-500/20'
