@@ -19,8 +19,10 @@ import {
   ShieldAlert,
   ArrowLeft,
   Store,
+  KeyRound,
 } from 'lucide-react';
 import Link from 'next/link';
+import { ChangeSuperadminPasswordModal } from '@/components/ChangeSuperadminPasswordModal';
 
 export default function UsersManagementPage() {
   const { user: currentUser, users, addUser, updateUser, deleteUser } = useAuth();
@@ -28,6 +30,7 @@ export default function UsersManagementPage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
   // Form State
@@ -233,6 +236,37 @@ export default function UsersManagementPage() {
           </div>
           <button onClick={() => setFeedback(null)} className="text-xs underline">
             Tutup
+          </button>
+        </div>
+      )}
+
+      {/* Kartu Khusus Keamanan Akun Super Admin */}
+      {currentUser?.role === 'superadmin' && (
+        <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-purple-500/30">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-400/40 text-purple-300 flex items-center justify-center shrink-0 shadow-inner">
+              <ShieldCheck className="w-6 h-6 text-purple-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm tracking-tight text-white">Akun Super Administrator</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/30 uppercase">
+                  Akses Utama
+                </span>
+              </div>
+              <p className="text-xs text-purple-200/80 mt-0.5">
+                Username: <strong className="text-white">@superadmin</strong> &bull; Pemegang wewenang penuh atas seluruh outlet dan sistem.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsChangePasswordOpen(true)}
+            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+          >
+            <KeyRound className="w-4 h-4" />
+            <span>Ganti Password Super Admin</span>
           </button>
         </div>
       )}
@@ -525,6 +559,13 @@ export default function UsersManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Ganti Password Super Admin */}
+      <ChangeSuperadminPasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        onSuccess={(msg) => setFeedback({ type: 'success', message: msg })}
+      />
     </div>
   );
 }

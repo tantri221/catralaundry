@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
-import { Menu, X, Plus, LogOut, ShieldCheck, User, ShieldAlert, Smartphone, Check, AlertTriangle } from 'lucide-react';
+import { Menu, X, Plus, LogOut, ShieldCheck, User, ShieldAlert, Smartphone, Check, AlertTriangle, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { ChangeSuperadminPasswordModal } from '@/components/ChangeSuperadminPasswordModal';
 
 export default function DashboardLayout({
   children,
@@ -25,6 +26,7 @@ export default function DashboardLayout({
   } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Route protection: redirect to login if not authenticated and not showing session terminated dialog
   useEffect(() => {
@@ -111,6 +113,16 @@ export default function DashboardLayout({
                     : 'Kasir'}
                 </span>
               </div>
+              {user?.role === 'superadmin' && (
+                <button
+                  onClick={() => setIsChangePasswordOpen(true)}
+                  title="Ganti Password Super Admin"
+                  className="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center gap-1.5 transition-colors border border-purple-200 cursor-pointer ml-1"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Ganti Password</span>
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 title="Keluar"
@@ -246,6 +258,12 @@ export default function DashboardLayout({
           </div>
         </div>
       )}
+
+      {/* Modal Ganti Password Super Admin */}
+      <ChangeSuperadminPasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+      />
     </div>
   );
 }
