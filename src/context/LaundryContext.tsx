@@ -185,7 +185,8 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const invoice = `${prefix}-${String(orderCount).padStart(3, '0')}`;
 
     const now = new Date();
-    const estimatedCompletionDate = new Date(now.getTime() + data.estimatedHours * 60 * 60 * 1000);
+    const leadtimeHours = data.estimatedHours > 0 ? data.estimatedHours : 24;
+    const estimatedCompletionDate = new Date(now.getTime() + leadtimeHours * 60 * 60 * 1000);
 
     const newOrder: Order = {
       id: `ord-${timestamp}`,
@@ -208,7 +209,7 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       paidAmount: data.paidAmount,
       paymentStatus: data.paymentStatus,
       paymentMethod: data.paymentMethod,
-      orderStatus: 'queue',
+      orderStatus: 'washing', // Langsung masuk ke status "sedang dikerjakan" saat pesanan dibuat
       createdAt: now.toISOString(),
       estimatedCompletion: estimatedCompletionDate.toISOString(),
       notes: data.notes,

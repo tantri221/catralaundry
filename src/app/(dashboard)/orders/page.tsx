@@ -27,6 +27,7 @@ import {
   Play,
   Check,
   Package,
+  Clock,
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -300,13 +301,19 @@ export default function OrdersPage() {
                     {order.items.map((i) => `${i.serviceName} (${i.quantity} ${i.unit})`).join(', ')}
                   </p>
 
-                  <div className="flex items-center gap-4 text-xs">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
                     <p className="font-semibold text-slate-800">
                       Total: <span className="font-bold text-blue-600">{formatRupiah(order.finalAmount)}</span>
                     </p>
                     <p className="text-slate-400">
                       Masuk: <FormattedDate date={order.createdAt} />
                     </p>
+                    {order.estimatedCompletion && (
+                      <p className="text-amber-800 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Estimasi Selesai: <FormattedDate date={order.estimatedCompletion} /></span>
+                      </p>
+                    )}
                   </div>
                 </div>
 

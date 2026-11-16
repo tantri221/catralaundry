@@ -20,6 +20,7 @@ import {
   Phone,
   Check,
   Layers,
+  Clock,
 } from 'lucide-react';
 
 interface CartItem {
@@ -129,6 +130,10 @@ export default function PosPage() {
   // Total amount from cart
   const cartTotalAmount = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const activeOrderTotal = cart.length > 0 ? cartTotalAmount : currentItemSubtotal;
+  const currentLeadtimeHours =
+    cart.length > 0
+      ? Math.max(...cart.map((i) => i.estimatedHours || 24))
+      : (selectedService?.estimatedHours || 24);
 
   // Submit order & print receipt
   const handleSaveOrder = (e: React.FormEvent) => {
@@ -595,6 +600,17 @@ export default function PosPage() {
                     {formatRupiah(activeOrderTotal)}
                   </span>
                 </div>
+              </div>
+
+              {/* Leadtime & Status Info */}
+              <div className="flex items-center justify-between p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs">
+                <div className="flex items-center gap-1.5 text-amber-900 font-semibold">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Leadtime: ~{currentLeadtimeHours} Jam</span>
+                </div>
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                  🧺 Langsung Dikerjakan
+                </span>
               </div>
 
               {/* Status Pembayaran */}

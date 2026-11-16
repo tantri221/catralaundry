@@ -174,7 +174,7 @@ export function generateWhatsAppNotification(order: Order): string {
   } else if (isQueue) {
     msg += `🧺 Cucian Anda di *Catra Laundry* sudah kami terima dan saat ini *SIAP DIKERJAKAN* dalam antrean.\n\n`;
   } else {
-    msg += `🧺 Update: Cucian Anda di *Catra Laundry* saat ini *SEDANG DIKERJAKAN* (dicuci/disetrika).\n\n`;
+    msg += `🧺 Cucian Anda di *Catra Laundry* sudah kami terima dan saat ini *SEDANG DIKERJAKAN*.\n\n`;
   }
 
   msg += `📄 *No. Nota:* ${order.invoice}\n`;

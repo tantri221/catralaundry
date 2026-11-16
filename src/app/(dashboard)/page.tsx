@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLaundry } from '@/context/LaundryContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOutlet } from '@/context/OutletContext';
+import { FormattedDate } from '@/components/FormattedDate';
 import {
   formatRupiah,
   ORDER_STATUS_DETAILS,
@@ -26,6 +27,7 @@ import {
   Play,
   Check,
   Package,
+  Clock,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -392,9 +394,20 @@ export default function DashboardPage() {
                     {order.notes && <span className="text-amber-700 italic ml-2">Note: {order.notes}</span>}
                   </p>
 
-                  <p className="text-xs font-semibold text-slate-800">
-                    Total: <span className="font-bold text-blue-600">{formatRupiah(order.finalAmount)}</span>
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs pt-1">
+                    <p className="font-semibold text-slate-800">
+                      Total: <span className="font-bold text-blue-600">{formatRupiah(order.finalAmount)}</span>
+                    </p>
+                    <p className="text-slate-400">
+                      Masuk: <FormattedDate date={order.createdAt} />
+                    </p>
+                    {order.estimatedCompletion && (
+                      <p className="text-amber-800 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Estimasi Selesai: <FormattedDate date={order.estimatedCompletion} /></span>
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Tombol Aksi Cepat */}
