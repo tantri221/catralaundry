@@ -18,6 +18,8 @@ export interface Service {
   price: number;
   unit: 'kg' | 'pcs' | 'meter' | 'pasang';
   estimatedHours: number;
+  timeUnit?: 'hours' | 'minutes';
+  estimatedDuration?: number;
   description?: string;
   iconName?: string;
 }

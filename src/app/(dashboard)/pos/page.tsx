@@ -391,13 +391,20 @@ export default function PosPage() {
                       </span>
                     )}
                     <div>
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                          srv.type === 'kiloan' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                        }`}
-                      >
-                        {srv.type}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                            srv.type === 'kiloan' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          }`}
+                        >
+                          {srv.type}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-medium">
+                          • {srv.timeUnit === 'minutes' || (srv.estimatedHours > 0 && srv.estimatedHours < 1)
+                            ? `${srv.estimatedDuration || Math.round(srv.estimatedHours * 60)}m`
+                            : `${srv.estimatedDuration || srv.estimatedHours}j`}
+                        </span>
+                      </div>
                       <p className="font-bold text-slate-800 text-xs mt-1.5 leading-snug line-clamp-2">
                         {srv.name}
                       </p>
@@ -627,7 +634,9 @@ export default function PosPage() {
               <div className="flex items-center justify-between p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs">
                 <div className="flex items-center gap-1.5 text-amber-900 font-semibold">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Leadtime: ~{currentLeadtimeHours} Jam</span>
+                  <span>
+                    Leadtime: ~{currentLeadtimeHours < 1 && currentLeadtimeHours > 0 ? `${Math.round(currentLeadtimeHours * 60)} Menit` : `${currentLeadtimeHours} Jam`}
+                  </span>
                 </div>
                 <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
                   🧺 Langsung Dikerjakan

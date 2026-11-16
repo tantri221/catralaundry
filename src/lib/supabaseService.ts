@@ -80,15 +80,25 @@ export async function getServicesFromSupabase(): Promise<Service[] | null> {
     }
     if (!data || data.length === 0) return null;
 
-    return data.map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      price: Number(row.price),
-      unit: row.unit,
-      estimatedHours: Number(row.estimated_hours || 24),
-      description: row.description || '',
-    }));
+    return data.map((row: any) => {
+      const rawHours = Number(row.estimated_hours || 24);
+      const isMinutes = rawHours < 0;
+      const duration = isMinutes ? Math.abs(rawHours) : rawHours;
+      const timeUnit: 'hours' | 'minutes' = isMinutes ? 'minutes' : 'hours';
+      const estimatedHours = isMinutes ? duration / 60 : duration;
+
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        price: Number(row.price),
+        unit: row.unit,
+        estimatedHours,
+        timeUnit,
+        estimatedDuration: duration,
+        description: row.description || '',
+      };
+    });
   } catch (err) {
     console.warn('[Supabase] getServices exception:', err);
     return null;
@@ -97,13 +107,21 @@ export async function getServicesFromSupabase(): Promise<Service[] | null> {
 
 export async function saveServiceToSupabase(service: Service): Promise<boolean> {
   try {
+    const isMinutes = service.timeUnit === 'minutes' || (service.estimatedHours > 0 && service.estimatedHours < 1);
+    const duration = service.estimatedDuration !== undefined
+      ? service.estimatedDuration
+      : (isMinutes ? Math.round(service.estimatedHours * 60) : Math.round(service.estimatedHours));
+
+    // In database: negative integer for minutes (e.g. -30), positive integer for hours (e.g. 24)
+    const dbEstimatedHours = isMinutes ? -Math.round(duration) : Math.round(duration);
+
     const { error } = await supabase.from('services').upsert({
       id: service.id,
       name: service.name,
       type: service.type,
       price: service.price,
       unit: service.unit,
-      estimated_hours: service.estimatedHours,
+      estimated_hours: dbEstimatedHours,
       description: service.description || null,
     });
     if (error) {

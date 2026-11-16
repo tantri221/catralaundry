@@ -61,8 +61,23 @@ export default function ServicesPage() {
   const [type, setType] = useState<ServiceType>('kiloan');
   const [price, setPrice] = useState<number>(0);
   const [unit, setUnit] = useState<'kg' | 'pcs' | 'meter' | 'pasang'>('kg');
-  const [estimatedHours, setEstimatedHours] = useState<number>(24);
+  const [estimatedDuration, setEstimatedDuration] = useState<number>(24);
+  const [timeUnit, setTimeUnit] = useState<'hours' | 'minutes'>('hours');
   const [description, setDescription] = useState('');
+
+  // Helper format durasi layanan
+  const formatDuration = (service: Service) => {
+    if (service.timeUnit === 'minutes') {
+      return `~${service.estimatedDuration || Math.round(service.estimatedHours * 60)} Menit`;
+    }
+    if (service.estimatedDuration && service.timeUnit === 'hours') {
+      return `~${service.estimatedDuration} Jam`;
+    }
+    if (service.estimatedHours < 1 && service.estimatedHours > 0) {
+      return `~${Math.round(service.estimatedHours * 60)} Menit`;
+    }
+    return `~${service.estimatedHours} Jam`;
+  };
 
   // Feedback Notification
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -74,7 +89,8 @@ export default function ServicesPage() {
     setType('kiloan');
     setPrice(0);
     setUnit('kg');
-    setEstimatedHours(24);
+    setEstimatedDuration(24);
+    setTimeUnit('hours');
     setDescription('');
     setIsModalOpen(true);
   };
@@ -86,7 +102,17 @@ export default function ServicesPage() {
     setType(service.type);
     setPrice(service.price);
     setUnit(service.unit);
-    setEstimatedHours(service.estimatedHours);
+    const isMin =
+      service.timeUnit === 'minutes' ||
+      (service.estimatedHours > 0 && service.estimatedHours < 1);
+    const dur =
+      service.estimatedDuration !== undefined
+        ? service.estimatedDuration
+        : isMin
+        ? Math.round(service.estimatedHours * 60)
+        : service.estimatedHours || 24;
+    setEstimatedDuration(dur);
+    setTimeUnit(isMin ? 'minutes' : 'hours');
     setDescription(service.description || '');
     setIsModalOpen(true);
   };
@@ -103,6 +129,8 @@ export default function ServicesPage() {
       return;
     }
 
+    const calculatedHours = timeUnit === 'minutes' ? estimatedDuration / 60 : estimatedDuration;
+
     if (editingServiceId) {
       // Update existing service
       updateService({
@@ -111,7 +139,9 @@ export default function ServicesPage() {
         type,
         price,
         unit,
-        estimatedHours,
+        estimatedHours: calculatedHours,
+        timeUnit,
+        estimatedDuration,
         description: description.trim(),
       });
       setFeedback({
@@ -125,7 +155,9 @@ export default function ServicesPage() {
         type,
         price,
         unit,
-        estimatedHours,
+        estimatedHours: calculatedHours,
+        timeUnit,
+        estimatedDuration,
         description: description.trim(),
       });
       setFeedback({
@@ -308,7 +340,7 @@ export default function ServicesPage() {
                   </span>
                   <span className="flex items-center gap-1 text-[11px] text-slate-500 font-medium bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
                     <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    ~{service.estimatedHours} Jam
+                    {formatDuration(service)}
                   </span>
                 </div>
 
@@ -462,23 +494,30 @@ export default function ServicesPage() {
                   </div>
                 </div>
 
-                {/* Estimasi Jam */}
+                {/* Estimasi Waktu (Durasi & Satuan Jam/Menit) */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Estimasi Selesai (Jam)
+                    Estimasi Selesai <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={estimatedHours}
-                      onChange={(e) => setEstimatedHours(parseInt(e.target.value) || 1)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
-                      Jam
-                    </span>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={estimatedDuration}
+                        onChange={(e) => setEstimatedDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800"
+                      />
+                    </div>
+                    <select
+                      value={timeUnit}
+                      onChange={(e) => setTimeUnit(e.target.value as 'hours' | 'minutes')}
+                      className="px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800 font-semibold min-w-[90px]"
+                    >
+                      <option value="hours">Jam</option>
+                      <option value="minutes">Menit</option>
+                    </select>
                   </div>
                 </div>
 
