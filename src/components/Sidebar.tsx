@@ -15,6 +15,7 @@ import {
   User,
   Users,
   Store,
+  BarChart3,
 } from 'lucide-react';
 import { useLaundry } from '@/context/LaundryContext';
 import { useAuth } from '@/context/AuthContext';
@@ -59,6 +60,12 @@ export const Sidebar: React.FC = () => {
     },
     ...(user?.role === 'admin' || user?.role === 'superadmin'
       ? [
+          {
+            label: 'Laporan Transaksi',
+            href: '/reports',
+            icon: BarChart3,
+            adminOnly: true,
+          },
           {
             label: 'Daftar Harga & Tarif',
             href: '/services',
