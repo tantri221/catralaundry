@@ -10,14 +10,36 @@ import {
   saveUserActiveSession,
   getUserActiveSession,
   clearUserActiveSession,
+  LoginApprovalRequest,
+  createLoginApprovalRequest,
+  getLoginApprovalRequest,
+  respondLoginApprovalRequest,
+  deleteLoginApprovalRequest,
 } from '@/lib/supabaseService';
+
+export interface LoginResult {
+  success: boolean;
+  message?: string;
+  isUsedOnOtherDevice?: boolean;
+  activeDevice?: string;
+  request?: LoginApprovalRequest;
+  user?: User;
+}
 
 interface AuthContextType extends AuthState {
   users: UserAccount[];
   sessionToken: string | null;
   sessionTerminatedReason: string | null;
   clearSessionTerminatedReason: () => void;
-  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  incomingLoginRequest: LoginApprovalRequest | null;
+  respondToLoginRequest: (approved: boolean) => Promise<void>;
+  dismissLoginRequest: () => void;
+  login: (
+    username: string,
+    password: string,
+    options?: { force?: boolean }
+  ) => Promise<LoginResult>;
+  completeApprovedLogin: (user: User, sessionToken: string) => Promise<void>;
   logout: () => void;
   addUser: (userData: Omit<UserAccount, 'id'>) => { success: boolean; message?: string };
   updateUser: (id: string, updatedData: Partial<UserAccount>) => { success: boolean; message?: string };
@@ -68,7 +90,7 @@ const STORAGE_KEY_SESSION_TOKEN = 'catra_auth_session_token';
 const STORAGE_KEY_USERS = 'catra_user_accounts_v5';
 const STORAGE_KEY_TERMINATED = 'catra_session_terminated_reason';
 
-function getDeviceSummary(): string {
+export function getDeviceSummary(): string {
   if (typeof window === 'undefined') return 'Perangkat';
   const ua = navigator.userAgent;
   let dev = 'Laptop / PC';
@@ -90,6 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [sessionTerminatedReason, setSessionTerminatedReason] = useState<string | null>(null);
+  const [incomingLoginRequest, setIncomingLoginRequest] = useState<LoginApprovalRequest | null>(null);
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -191,7 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [user]);
 
-  // Single Device Enforcement: Supabase Realtime Broadcast & Polling
+  // Single Device Enforcement & Incoming Login Approval on Device 1
   useEffect(() => {
     if (!user || !sessionToken) return;
 
@@ -221,24 +244,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           handleKickOut(data.deviceInfo);
         }
       })
+      .on('broadcast', { event: 'login_approval_request' }, (eventPayload) => {
+        if (!isSubscribed) return;
+        const data = eventPayload?.payload as LoginApprovalRequest;
+        if (!data) return;
+
+        const currentCleanUser = user.username.trim().toLowerCase();
+        const incomingCleanUser = String(data.username || '').trim().toLowerCase();
+
+        if (currentCleanUser === incomingCleanUser && data.status === 'pending') {
+          console.log('[Auth] Incoming login request received:', data);
+          setIncomingLoginRequest(data);
+        }
+      })
       .subscribe();
 
-    // 2. Database verification check (Persistent Cloud Check)
+    // 2. Database verification check (Persistent Cloud Check & Login Request Polling)
     const verifySessionWithDatabase = async () => {
       if (!isSubscribed || !user || !sessionToken) return;
       try {
+        // Check if session token still matches
         const remote = await getUserActiveSession(user.username);
         if (remote && remote.sessionToken && remote.sessionToken !== sessionToken) {
           console.warn('[Auth] Database check: session mismatch. Kicking out.');
           handleKickOut(remote.deviceInfo);
+          return;
+        }
+
+        // Check if there is an active pending login approval request for this user
+        const pendingReq = await getLoginApprovalRequest(user.username);
+        if (
+          pendingReq &&
+          pendingReq.status === 'pending' &&
+          Date.now() - pendingReq.createdAt < 60000
+        ) {
+          setIncomingLoginRequest(pendingReq);
         }
       } catch {
         // Silently catch network errors
       }
     };
 
-    // Verify on mount and periodically every 10 seconds
-    const intervalId = setInterval(verifySessionWithDatabase, 10000);
+    // Verify on mount and periodically every 8 seconds
+    const intervalId = setInterval(verifySessionWithDatabase, 8000);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -258,6 +306,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [user, sessionToken, handleKickOut]);
 
+  // Respond to login approval request from Device 1
+  const respondToLoginRequest = async (approved: boolean) => {
+    if (!incomingLoginRequest || !user) return;
+    const req = incomingLoginRequest;
+
+    try {
+      await respondLoginApprovalRequest(
+        user.username,
+        req.requestId,
+        approved ? 'approved' : 'rejected',
+        req.newSessionToken
+      );
+
+      const authChannel = supabase.channel('catra_auth_sessions');
+      await authChannel.subscribe();
+      await authChannel.send({
+        type: 'broadcast',
+        event: 'login_approval_response',
+        payload: {
+          requestId: req.requestId,
+          username: user.username,
+          status: approved ? 'approved' : 'rejected',
+          requestingDevice: req.requestingDevice,
+          newSessionToken: req.newSessionToken,
+        },
+      });
+
+      if (approved) {
+        // Update active session to the new device and kick out device 1
+        await saveUserActiveSession(user.username, req.newSessionToken, req.requestingDevice);
+        setIncomingLoginRequest(null);
+        handleKickOut(req.requestingDevice);
+      } else {
+        setIncomingLoginRequest(null);
+      }
+    } catch (err) {
+      console.error('Error responding to login request:', err);
+      setIncomingLoginRequest(null);
+    }
+  };
+
+  const dismissLoginRequest = () => {
+    setIncomingLoginRequest(null);
+  };
+
   const saveUsersList = (updatedList: UserAccount[]) => {
     setUsers(updatedList);
     try {
@@ -267,67 +360,133 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (usernameInput: string, passwordInput: string) => {
+  const login = async (
+    usernameInput: string,
+    passwordInput: string,
+    options?: { force?: boolean }
+  ): Promise<LoginResult> => {
     const trimmedUser = usernameInput.trim().toLowerCase();
     const matched = users.find(
       (u) => u.username.toLowerCase() === trimmedUser && u.password === passwordInput
     );
 
-    if (matched) {
-      const authUser: User = {
-        id: matched.id,
-        name: matched.name,
-        username: matched.username,
-        phone: matched.phone,
-        role: matched.role,
-        outletId: matched.outletId,
-        outletName: matched.outletName,
-        createdAt: matched.createdAt,
+    if (!matched) {
+      return {
+        success: false,
+        message: 'Username atau password salah! Silakan periksa kembali.',
       };
-
-      const newSessionToken = `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
-      const deviceInfo = getDeviceSummary();
-
-      setUser(authUser);
-      setSessionToken(newSessionToken);
-      setSessionTerminatedReason(null);
-
-      try {
-        localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(authUser));
-        localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, newSessionToken);
-        localStorage.removeItem(STORAGE_KEY_TERMINATED);
-
-        if (matched.outletId && matched.outletId !== 'all') {
-          localStorage.setItem('catra_laundry_active_outlet_id_v2', matched.outletId);
-        }
-      } catch {}
-
-      // Save to Supabase Cloud & Broadcast to other devices
-      try {
-        await saveUserActiveSession(matched.username, newSessionToken, deviceInfo);
-
-        const channel = supabase.channel('catra_auth_sessions');
-        await channel.subscribe();
-        await channel.send({
-          type: 'broadcast',
-          event: 'session_replaced',
-          payload: {
-            username: matched.username,
-            newSessionToken,
-            deviceInfo,
-          },
-        });
-      } catch (err) {
-        console.warn('[AuthProvider] Cloud session registration error:', err);
-      }
-
-      return { success: true };
     }
 
-    return {
-      success: false,
-      message: 'Username atau password salah! Silakan periksa kembali.',
+    const authUser: User = {
+      id: matched.id,
+      name: matched.name,
+      username: matched.username,
+      phone: matched.phone,
+      role: matched.role,
+      outletId: matched.outletId,
+      outletName: matched.outletName,
+      createdAt: matched.createdAt,
     };
+
+    // Check if account is currently active on another device
+    if (!options?.force) {
+      try {
+        const remoteSession = await getUserActiveSession(matched.username);
+        // If remote session exists and differs from our current local session
+        if (remoteSession && remoteSession.sessionToken && remoteSession.sessionToken !== sessionToken) {
+          const requestingDevice = getDeviceSummary();
+          const newSessionToken = `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+
+          // Create approval request in Supabase
+          const approvalReq = await createLoginApprovalRequest(
+            matched.username,
+            requestingDevice,
+            newSessionToken
+          );
+
+          // Broadcast to Device 1 immediately
+          if (approvalReq) {
+            const channel = supabase.channel('catra_auth_sessions');
+            await channel.subscribe();
+            await channel.send({
+              type: 'broadcast',
+              event: 'login_approval_request',
+              payload: approvalReq,
+            });
+          }
+
+          return {
+            success: false,
+            isUsedOnOtherDevice: true,
+            activeDevice: remoteSession.deviceInfo || 'Perangkat Lain',
+            request: approvalReq || undefined,
+            user: authUser,
+          };
+        }
+      } catch (err) {
+        console.warn('[AuthProvider] Remote session check exception:', err);
+      }
+    }
+
+    // Direct Login or Force Login
+    const newSessionToken = `sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+    const deviceInfo = getDeviceSummary();
+
+    setUser(authUser);
+    setSessionToken(newSessionToken);
+    setSessionTerminatedReason(null);
+
+    try {
+      localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(authUser));
+      localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, newSessionToken);
+      localStorage.removeItem(STORAGE_KEY_TERMINATED);
+
+      if (matched.outletId && matched.outletId !== 'all') {
+        localStorage.setItem('catra_laundry_active_outlet_id_v2', matched.outletId);
+      }
+    } catch {}
+
+    // Save to Supabase Cloud & Broadcast to other devices
+    try {
+      await saveUserActiveSession(matched.username, newSessionToken, deviceInfo);
+      await deleteLoginApprovalRequest(matched.username);
+
+      const channel = supabase.channel('catra_auth_sessions');
+      await channel.subscribe();
+      await channel.send({
+        type: 'broadcast',
+        event: 'session_replaced',
+        payload: {
+          username: matched.username,
+          newSessionToken,
+          deviceInfo,
+        },
+      });
+    } catch (err) {
+      console.warn('[AuthProvider] Cloud session registration error:', err);
+    }
+
+    return { success: true, user: authUser };
+  };
+
+  const completeApprovedLogin = async (approvedUser: User, newSessionToken: string) => {
+    setUser(approvedUser);
+    setSessionToken(newSessionToken);
+    setSessionTerminatedReason(null);
+
+    try {
+      localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(approvedUser));
+      localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, newSessionToken);
+      localStorage.removeItem(STORAGE_KEY_TERMINATED);
+
+      if (approvedUser.outletId && approvedUser.outletId !== 'all') {
+        localStorage.setItem('catra_laundry_active_outlet_id_v2', approvedUser.outletId);
+      }
+    } catch {}
+
+    try {
+      await deleteLoginApprovalRequest(approvedUser.username);
+    } catch {}
   };
 
   const logout = () => {
@@ -449,6 +608,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sessionToken,
         sessionTerminatedReason,
         clearSessionTerminatedReason,
+        incomingLoginRequest,
+        respondToLoginRequest,
+        dismissLoginRequest,
+        completeApprovedLogin,
         isAuthenticated: !!user,
         isLoading,
         login,

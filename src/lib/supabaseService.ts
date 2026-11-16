@@ -287,9 +287,12 @@ export async function getStaffUsersFromSupabase(): Promise<UserAccount[] | null>
     }
     if (!data || data.length === 0) return null;
 
-    // Filter out session records that are prefixed with sess_ or __sess_
+    // Filter out session and login request records that are prefixed with sess_ or login_req_ or __
     const actualUsers = data.filter(
-      (row: any) => !String(row.id || '').startsWith('sess_') && !String(row.username || '').startsWith('__sess_')
+      (row: any) =>
+        !String(row.id || '').startsWith('sess_') &&
+        !String(row.id || '').startsWith('login_req_') &&
+        !String(row.username || '').startsWith('__')
     );
 
     return actualUsers.map((row: any) => ({
@@ -427,6 +430,117 @@ export async function clearUserActiveSession(username: string, currentSessionTok
     }
 
     const { error } = await supabase.from('staff_users').delete().eq('id', `sess_${cleanUser}`);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ========================
+// LOGIN APPROVAL HANDSHAKE (PERANGKAT PERTAMA & PERANGKAT BARU)
+// ========================
+export interface LoginApprovalRequest {
+  requestId: string;
+  username: string;
+  requestingDevice: string;
+  status: 'pending' | 'approved' | 'rejected';
+  newSessionToken: string;
+  createdAt: number;
+}
+
+export async function createLoginApprovalRequest(
+  username: string,
+  requestingDevice: string,
+  newSessionToken: string
+): Promise<LoginApprovalRequest | null> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const requestId = `req_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+    const reqPayload: LoginApprovalRequest = {
+      requestId,
+      username: cleanUser,
+      requestingDevice,
+      status: 'pending',
+      newSessionToken,
+      createdAt: Date.now(),
+    };
+
+    const dbPayload = {
+      id: `login_req_${cleanUser}`,
+      username: `__login_req_${cleanUser}`,
+      password: JSON.stringify(reqPayload),
+      full_name: requestingDevice,
+      phone: '',
+      role: 'kasir',
+      outlet_id: null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('staff_users').upsert(dbPayload);
+    if (error) {
+      console.warn('[Supabase] createLoginApprovalRequest error:', error.message);
+      return null;
+    }
+    return reqPayload;
+  } catch (err) {
+    console.warn('[Supabase] createLoginApprovalRequest exception:', err);
+    return null;
+  }
+}
+
+export async function getLoginApprovalRequest(
+  username: string
+): Promise<LoginApprovalRequest | null> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('staff_users')
+      .select('password')
+      .eq('id', `login_req_${cleanUser}`)
+      .single();
+
+    if (error || !data || !data.password) return null;
+    return JSON.parse(data.password) as LoginApprovalRequest;
+  } catch {
+    return null;
+  }
+}
+
+export async function respondLoginApprovalRequest(
+  username: string,
+  requestId: string,
+  status: 'approved' | 'rejected',
+  newSessionToken?: string
+): Promise<boolean> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const current = await getLoginApprovalRequest(cleanUser);
+    if (!current || current.requestId !== requestId) return false;
+
+    current.status = status;
+    if (newSessionToken) {
+      current.newSessionToken = newSessionToken;
+    }
+
+    const { error } = await supabase
+      .from('staff_users')
+      .update({ password: JSON.stringify(current) })
+      .eq('id', `login_req_${cleanUser}`);
+
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteLoginApprovalRequest(username: string): Promise<boolean> {
+  try {
+    const cleanUser = username.trim().toLowerCase();
+    const { error } = await supabase
+      .from('staff_users')
+      .delete()
+      .eq('id', `login_req_${cleanUser}`);
     return !error;
   } catch {
     return false;
