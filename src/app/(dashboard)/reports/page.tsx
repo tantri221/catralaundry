@@ -14,7 +14,6 @@ import {
   BarChart3,
   Calendar,
   Download,
-  Printer,
   Search,
   Store,
   Filter,
@@ -208,11 +207,6 @@ export default function ReportsPage() {
     };
   }, [filteredOrders]);
 
-  // Print function
-  const handlePrint = () => {
-    window.print();
-  };
-
   // Export to CSV
   const handleExportCSV = () => {
     if (filteredOrders.length === 0) {
@@ -277,8 +271,8 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header (Hidden on Print) */}
-      <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-blue-600" />
@@ -289,16 +283,8 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        {/* Action Buttons: Cetak & Export */}
+        {/* Action Button: Ekspor Excel */}
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95"
-            title="Cetak Laporan / Simpan PDF"
-          >
-            <Printer className="w-4 h-4 text-slate-600" />
-            <span>Cetak / PDF</span>
-          </button>
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/20 transition-all active:scale-95"
@@ -310,33 +296,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Kop Cetak Resmi (Hanya Muncul Saat Dicetak) */}
-      <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">CATRA LAUNDRY</h1>
-            <p className="text-xs text-slate-600 font-semibold">
-              Sistem Manajemen & Kasir POS Operasional Laundry
-            </p>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Periode Laporan: <strong>{startDate || 'Awal'}</strong> s/d <strong>{endDate || 'Sekarang'}</strong>
-              {selectedOutletId !== 'all' && (
-                <span> | Outlet: {outlets.find((o) => o.id === selectedOutletId)?.name || selectedOutletId}</span>
-              )}
-              {customerNameFilter && (
-                <span> | Pelanggan: <strong>{customerNameFilter}</strong></span>
-              )}
-            </p>
-          </div>
-          <div className="text-right text-[11px] text-slate-500">
-            <p>Dicetak Pada: {new Date().toLocaleString('id-ID')}</p>
-            <p>Oleh: <strong>{user?.name || 'Administrator'}</strong></p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Section (Hidden on Print) */}
-      <div className="print:hidden bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+      {/* Filter Section */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
         {/* Preset Periode Cepat */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -605,8 +566,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Rincian Metode Bayar (Hidden on Print) */}
-      <div className="print:hidden bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
+      {/* Rincian Metode Bayar */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs">
         <span className="font-bold text-slate-700">Rincian Pembayaran Masuk:</span>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
