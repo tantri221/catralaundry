@@ -24,9 +24,22 @@ export default function DashboardLayout({
     incomingLoginRequest,
     respondToLoginRequest,
   } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+
+  // Close sidebar drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSidebarOpen(false);
+      }
+    };
+    if (sidebarOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
 
   // Route protection: redirect to login if not authenticated and not showing session terminated dialog
   useEffect(() => {
@@ -44,39 +57,36 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex">
-        <Sidebar />
-      </div>
-
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+      {/* Slide-out Off-Canvas Sidebar Drawer (Desktop & Mobile) */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop overlay */}
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-xs"
-            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setSidebarOpen(false)}
           />
-          <div className="relative flex flex-col w-64 max-w-xs bg-white z-10 shadow-2xl">
-            <div className="absolute top-4 right-4 text-slate-500">
-              <button onClick={() => setMobileMenuOpen(false)} className="p-1 rounded-lg hover:bg-slate-100">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <Sidebar />
+          {/* Drawer container */}
+          <div className="relative flex flex-col w-72 max-w-[85vw] h-full bg-white z-10 shadow-2xl animate-in slide-in-from-left duration-200 overflow-y-auto">
+            <Sidebar
+              onNavigate={() => setSidebarOpen(false)}
+              onClose={() => setSidebarOpen(false)}
+            />
           </div>
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Main Content Area (Full screen width) */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
         <header className="h-16 bg-white border-b border-slate-200/80 px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-2 rounded-xl text-slate-600 hover:bg-slate-100 md:hidden border border-slate-200"
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-xs bg-white"
+              title="Buka Menu Navigasi (Esc untuk tutup)"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 text-blue-600" />
+              <span className="text-xs font-bold text-slate-700 hidden sm:inline">Menu</span>
             </button>
             <div>
               <p className="text-sm font-bold text-slate-800">Catra Laundry</p>

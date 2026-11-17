@@ -16,12 +16,18 @@ import {
   Users,
   Store,
   BarChart3,
+  X,
 } from 'lucide-react';
 import { useLaundry } from '@/context/LaundryContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOutlet } from '@/context/OutletContext';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onNavigate?: () => void;
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onNavigate, onClose }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { orders } = useLaundry();
@@ -35,6 +41,7 @@ export const Sidebar: React.FC = () => {
 
   const handleLogout = () => {
     if (confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
+      if (onClose) onClose();
       logout();
       router.push('/login');
     }
@@ -94,17 +101,36 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col shrink-0">
+    <aside className="w-full bg-white border-r border-slate-200 min-h-screen flex flex-col shrink-0">
       {/* Brand & Outlet Name */}
       <div className="p-4 border-b border-slate-100 space-y-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="font-bold text-slate-800 text-sm leading-tight truncate">Catra Laundry</h1>
-            <p className="text-[11px] text-slate-400">Kasir & Tracking</p>
-          </div>
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            onClick={() => {
+              if (onNavigate) onNavigate();
+            }}
+            className="flex items-center gap-2.5 group cursor-pointer"
+          >
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-bold text-slate-800 text-sm leading-tight truncate group-hover:text-blue-600 transition-colors">
+                Catra Laundry
+              </h1>
+              <p className="text-[11px] text-slate-400">Kasir & Tracking</p>
+            </div>
+          </Link>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Tutup Menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Active Outlet Pill */}
@@ -125,7 +151,10 @@ export const Sidebar: React.FC = () => {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              onClick={() => {
+                if (onNavigate) onNavigate();
+              }}
+              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
                 item.highlight && !isActive
                   ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                   : isActive
