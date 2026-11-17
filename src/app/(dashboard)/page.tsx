@@ -308,7 +308,7 @@ export default function DashboardPage() {
         <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5" />
         <input
           type="text"
-          placeholder="Cari cucian berdasarkan nomor nota (CTR-...) atau nama pelanggan..."
+          placeholder="Cari cucian berdasarkan nomor nota (misal: CLB-2611-001) atau nama pelanggan..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-11 pr-4 py-3 bg-white rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"

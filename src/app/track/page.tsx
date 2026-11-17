@@ -88,14 +88,14 @@ function TrackContent() {
           </div>
           <h1 className="text-xl font-bold text-slate-800">Cek Status Laundry</h1>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-            Masukkan Nomor Invoice (misal: CTR-202611-001) atau Nomor WhatsApp yang terdaftar
+            Masukkan Nomor Invoice (misal: CLB-2611-001) atau Nomor WhatsApp yang terdaftar
           </p>
 
           <form onSubmit={handleSearch} className="mt-5 max-w-md mx-auto flex gap-2">
             <input
               type="text"
               required
-              placeholder="Contoh: CTR-202611-001 / 081234..."
+              placeholder="Contoh: CLB-2611-001 / 081234..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"

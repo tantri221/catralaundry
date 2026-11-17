@@ -251,11 +251,30 @@ export const LaundryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addOrder: LaundryContextType['addOrder'] = (data) => {
     const timestamp = Date.now();
-    const orderCount = orders.length + 1;
-    const prefix = data.outletCode ? `CTR-${data.outletCode}` : 'CTR';
-    const invoice = `${prefix}-${String(orderCount).padStart(3, '0')}`;
-
     const now = new Date();
+
+    // Format No. Nota: [KODE CABANG]-[YYMM]-[NOMOR URUT 3 DIGIT] (Contoh: CLB-2611-001)
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const branchCode = (data.outletCode || 'CTR').trim().toUpperCase();
+    const invoicePrefix = `${branchCode}-${yy}${mm}-`;
+
+    // Hitung nomor urut tertinggi untuk cabang & bulan berjalan
+    let maxSeq = 0;
+    orders.forEach((o) => {
+      if (o.invoice && o.invoice.startsWith(invoicePrefix)) {
+        const parts = o.invoice.split('-');
+        const lastPart = parts[parts.length - 1];
+        const num = parseInt(lastPart, 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    });
+
+    const nextSeq = maxSeq + 1;
+    const invoice = `${invoicePrefix}${String(nextSeq).padStart(3, '0')}`;
+
     const leadtimeHours = data.estimatedHours > 0 ? data.estimatedHours : 24;
     const estimatedCompletionDate = new Date(now.getTime() + leadtimeHours * 60 * 60 * 1000);
 
