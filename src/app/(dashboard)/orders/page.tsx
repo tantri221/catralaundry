@@ -15,6 +15,7 @@ import {
 import { Order } from '@/types/laundry';
 import { ReceiptModal } from '@/components/ReceiptModal';
 import { HandoverModal } from '@/components/HandoverModal';
+import { PackagingTagModal } from '@/components/PackagingTagModal';
 import { EstimatedCompletionBadge } from '@/components/EstimatedCompletionBadge';
 import {
   Search,
@@ -27,6 +28,7 @@ import {
   Check,
   Package,
   Clock,
+  Tag,
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -37,6 +39,7 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'process' | 'ready' | 'completed'>('all');
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<Order | null>(null);
+  const [selectedPackagingTagOrder, setSelectedPackagingTagOrder] = useState<Order | null>(null);
   const [selectedHandoverOrder, setSelectedHandoverOrder] = useState<Order | null>(null);
 
   const handleConfirmHandover = (options: {
@@ -341,14 +344,24 @@ export default function OrdersPage() {
                     <span>Kirim WA</span>
                   </a>
 
-                  {/* Print */}
+                  {/* Print Nota */}
                   <button
                     onClick={() => setSelectedReceiptOrder(order)}
-                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1"
-                    title="Cetak Nota"
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Cetak Nota Pembayaran"
                   >
-                    <Printer className="w-4 h-4" />
+                    <Printer className="w-4 h-4 text-slate-600" />
                     <span>Nota</span>
+                  </button>
+
+                  {/* Print Packaging TAG */}
+                  <button
+                    onClick={() => setSelectedPackagingTagOrder(order)}
+                    className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    title="Cetak Label TAG Penanda Kemasan Cucian"
+                  >
+                    <Tag className="w-4 h-4 text-amber-600" />
+                    <span>TAG</span>
                   </button>
 
                   {/* Workflow Advancement Buttons */}
@@ -415,6 +428,13 @@ export default function OrdersPage() {
       <ReceiptModal
         order={selectedReceiptOrder}
         onClose={() => setSelectedReceiptOrder(null)}
+        onOpenTagModal={(ord) => setSelectedPackagingTagOrder(ord)}
+      />
+
+      {/* Modal Cetak Label TAG Penanda Kemasan */}
+      <PackagingTagModal
+        order={selectedPackagingTagOrder}
+        onClose={() => setSelectedPackagingTagOrder(null)}
       />
 
       {/* Modal Pengingat Pelunasan Pembayaran & Penyerahan */}

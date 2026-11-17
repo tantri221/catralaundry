@@ -4,15 +4,16 @@ import React from 'react';
 import { Order } from '@/types/laundry';
 import { formatRupiah, ORDER_STATUS_DETAILS, PAYMENT_STATUS_DETAILS } from '@/lib/constants';
 import { FormattedDate } from '@/components/FormattedDate';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Tag } from 'lucide-react';
 import { useOutlet } from '@/context/OutletContext';
 
 interface ReceiptModalProps {
   order: Order | null;
   onClose: () => void;
+  onOpenTagModal?: (order: Order) => void;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onOpenTagModal }) => {
   const { outlets, activeOutlet } = useOutlet();
 
   if (!order) return null;
@@ -134,19 +135,29 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
         </div>
 
         {/* Modal Actions */}
-        <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+        <div className="p-3.5 bg-gray-50 border-t border-gray-100 flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-2 px-3 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+            className="py-2 px-3 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
           >
             Tutup
           </button>
+          {onOpenTagModal && (
+            <button
+              onClick={() => onOpenTagModal(order)}
+              className="flex-1 py-2 px-3 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              title="Cetak Label Penanda Kemasan Cucian"
+            >
+              <Tag className="w-4 h-4 text-amber-600" />
+              <span>Label TAG</span>
+            </button>
+          )}
           <button
             onClick={handlePrint}
-            className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+            className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer active:scale-95"
           >
             <Printer className="w-4 h-4" />
-            Cetak Nota
+            <span>Cetak Nota</span>
           </button>
         </div>
       </div>

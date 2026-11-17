@@ -7,6 +7,7 @@ import { useOutlet } from '@/context/OutletContext';
 import { formatRupiah } from '@/lib/constants';
 import { PaymentStatus, Service, Order, ServiceType } from '@/types/laundry';
 import { ReceiptModal } from '@/components/ReceiptModal';
+import { PackagingTagModal } from '@/components/PackagingTagModal';
 import {
   ShoppingBag,
   Plus,
@@ -131,8 +132,9 @@ export default function PosPage() {
   const [isPaidNow, setIsPaidNow] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer'>('cash');
 
-  // Receipt Modal
+  // Receipt & Tag Modals
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const [packagingTagOrder, setPackagingTagOrder] = useState<Order | null>(null);
 
   // Filtered services based on category tab
   const filteredServices = services.filter((srv) => {
@@ -858,6 +860,13 @@ export default function PosPage() {
       <ReceiptModal
         order={createdOrder}
         onClose={() => setCreatedOrder(null)}
+        onOpenTagModal={(ord) => setPackagingTagOrder(ord)}
+      />
+
+      {/* Modal Cetak Label TAG Kemasan */}
+      <PackagingTagModal
+        order={packagingTagOrder}
+        onClose={() => setPackagingTagOrder(null)}
       />
     </div>
   );
