@@ -38,98 +38,92 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onOp
           </button>
         </div>
 
-        {/* Printable Struk Body */}
-        <div className="p-6 overflow-y-auto flex-1 font-mono text-xs text-gray-800 bg-white" id="printable-receipt">
-          <div className="text-center pb-3 border-b border-dashed border-gray-400">
-            <h2 className="font-bold text-base tracking-wider uppercase text-slate-900">{orderOutlet.name}</h2>
-            <p className="text-[11px] text-gray-600">{orderOutlet.address}</p>
-            <p className="text-[11px] text-gray-600">No. WA / Telp: {orderOutlet.phone}</p>
+        {/* Printable Struk Body - Model Simpel Kompak (Contoh 1) */}
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 font-mono text-xs text-slate-900 bg-white" id="printable-receipt">
+          {/* Kop Toko / Cabang */}
+          <div className="text-center pb-2 border-b border-dashed border-slate-400">
+            <h2 className="font-black text-sm tracking-wider uppercase text-slate-900">CATRA LAUNDRY</h2>
+            <p className="text-[11px] font-bold text-slate-800 uppercase">{orderOutlet.name}</p>
+            {orderOutlet.phone && (
+              <p className="text-[10px] text-slate-500">WA/Telp: {orderOutlet.phone}</p>
+            )}
           </div>
 
-          <div className="py-2.5 border-b border-dashed border-gray-400 space-y-1">
+          {/* Info Transaksi & Pelanggan */}
+          <div className="py-2 border-b border-dashed border-slate-300 text-[11px] space-y-0.5">
             <div className="flex justify-between">
-              <span className="text-gray-500">No. Invoice:</span>
-              <span className="font-bold">{order.invoice}</span>
+              <span className="text-slate-500 font-semibold">No. Nota</span>
+              <span className="font-bold text-slate-900 font-mono">{order.invoice}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Tanggal:</span>
-              <span><FormattedDate date={order.createdAt} /></span>
+              <span className="text-slate-500 font-semibold">Tanggal</span>
+              <span className="text-slate-800"><FormattedDate date={order.createdAt} /></span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Pelanggan:</span>
-              <span className="font-semibold">{order.customer.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">No. Telp/WA:</span>
-              <span>{order.customer.phone}</span>
+              <span className="text-slate-500 font-semibold">Pelanggan</span>
+              <span className="font-bold text-slate-900 uppercase truncate max-w-[190px]">
+                {order.customer.name} {order.customer.phone ? `(${order.customer.phone})` : ''}
+              </span>
             </div>
             {order.customer.address && (
-              <div className="flex justify-between text-left gap-2">
-                <span className="text-gray-500 shrink-0">Alamat:</span>
-                <span className="font-normal text-right truncate max-w-[180px]">{order.customer.address}</span>
+              <div className="flex justify-between text-[10px]">
+                <span className="text-slate-500 font-semibold shrink-0">Alamat</span>
+                <span className="text-slate-700 text-right truncate max-w-[170px]">{order.customer.address}</span>
               </div>
             )}
           </div>
 
-          {/* Items */}
-          <div className="py-2.5 border-b border-dashed border-gray-400 space-y-2">
+          {/* Rincian Pesanan (Kompak 1 Baris per Item) */}
+          <div className="py-2 border-b border-dashed border-slate-300 space-y-1 text-[11px]">
             {order.items.map((item, idx) => (
-              <div key={idx} className="space-y-0.5">
-                <div className="flex justify-between font-semibold">
-                  <span>{item.serviceName}</span>
-                  <span>{formatRupiah(item.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-[11px] text-gray-500">
-                  <span>
-                    {item.quantity} {item.unit} x {formatRupiah(item.unitPrice)}
-                  </span>
-                </div>
-                {item.notes && <div className="text-[10px] italic text-gray-500">Catatan: {item.notes}</div>}
+              <div key={idx} className="flex justify-between items-baseline gap-2">
+                <span className="truncate text-slate-800">
+                  {item.serviceName} ({item.quantity} {item.unit})
+                </span>
+                <span className="font-mono font-bold shrink-0">{formatRupiah(item.subtotal)}</span>
               </div>
             ))}
           </div>
 
-          {/* Summary */}
-          <div className="py-2.5 border-b border-dashed border-gray-400 space-y-1">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Subtotal:</span>
-              <span>{formatRupiah(order.totalAmount)}</span>
-            </div>
+          {/* Ringkasan Biaya & Status Bayar */}
+          <div className="py-2 border-b border-dashed border-slate-400 space-y-1 text-[11px]">
             {order.discount > 0 && (
               <div className="flex justify-between text-rose-600">
-                <span>Diskon:</span>
+                <span>Diskon</span>
                 <span>-{formatRupiah(order.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-sm text-slate-900 pt-1">
-              <span>TOTAL:</span>
-              <span>{formatRupiah(order.finalAmount)}</span>
+            <div className="flex justify-between font-black text-xs text-slate-900 pt-0.5">
+              <span>TOTAL TAGIHAN</span>
+              <span className="font-mono text-sm">{formatRupiah(order.finalAmount)}</span>
             </div>
-            <div className="flex justify-between pt-1">
-              <span className="text-gray-500">Dibayar:</span>
-              <span>{formatRupiah(order.paidAmount)}</span>
-            </div>
-            <div className="flex justify-between font-medium">
-              <span className="text-gray-500">Status Bayar:</span>
-              <span className={order.paymentStatus === 'paid' ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
-                {PAYMENT_STATUS_DETAILS[order.paymentStatus].label}
+            <div className="flex justify-between items-center font-bold text-xs pt-1">
+              <span className="text-slate-600">STATUS BAYAR</span>
+              <span
+                className={`px-2 py-0.5 rounded text-[11px] font-black uppercase ${
+                  order.paymentStatus === 'paid'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-rose-100 text-rose-800 border border-rose-300'
+                }`}
+              >
+                {order.paymentStatus === 'paid' ? '[ LUNAS ]' : '[ BELUM LUNAS / BON ]'}
               </span>
             </div>
+            {order.paymentStatus !== 'paid' && order.paidAmount > 0 && (
+              <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
+                <span>Sudah Bayar (DP)</span>
+                <span>{formatRupiah(order.paidAmount)}</span>
+              </div>
+            )}
           </div>
 
-          {/* Estimates & QR Code placeholder */}
-          <div className="pt-3 text-center space-y-1.5">
-            <p className="text-[11px] font-semibold text-slate-700">
+          {/* Estimasi Selesai & Footer Simpel */}
+          <div className="pt-2 text-center text-[10px] text-slate-600 space-y-1">
+            <p className="font-bold text-slate-800">
               Estimasi Selesai: <FormattedDate date={order.estimatedCompletion} />
             </p>
-            <div className="p-2 border border-gray-200 rounded bg-gray-50 inline-block my-1">
-              <p className="text-[9px] text-gray-500 uppercase">Cek Status Cucian:</p>
-              <p className="text-[10px] font-bold text-blue-600">catralaundry.com/track/{order.invoice}</p>
-            </div>
-            <p className="text-[10px] text-gray-500 leading-tight">
-              {activeOutlet.footerNote || 'Harap bawa nota ini saat pengambilan cucian.'}
-              <br />
-              Terima Kasih atas Kunjungan Anda!
+            <p className="text-[9px] text-slate-500 leading-tight">
+              {activeOutlet.footerNote || 'Bawa nota ini saat pengambilan. Terima kasih!'}
             </p>
           </div>
         </div>
