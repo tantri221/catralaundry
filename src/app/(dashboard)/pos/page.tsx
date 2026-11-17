@@ -84,6 +84,11 @@ export default function PosPage() {
     );
 
     sorted.forEach((o) => {
+      // Filter per cabang yang sedang aktif saja!
+      if (operatingOutletId && o.outletId && o.outletId !== operatingOutletId) {
+        return;
+      }
+
       const rawName = o.customer?.name?.trim();
       if (!rawName) return;
       const key = rawName.toLowerCase();
@@ -103,7 +108,7 @@ export default function PosPage() {
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalOrders - a.totalOrders);
-  }, [orders]);
+  }, [orders, operatingOutletId]);
 
   const matchedCustomerSuggestions = useMemo(() => {
     if (!customerName.trim()) {
@@ -343,7 +348,7 @@ export default function PosPage() {
               </div>
               {customerReferences.length > 0 && (
                 <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-                  ✨ {customerReferences.length} Pelanggan Pernah Mencuci
+                  ✨ {customerReferences.length} Pelanggan Cabang {operatingOutlet.name}
                 </span>
               )}
             </div>
@@ -377,8 +382,8 @@ export default function PosPage() {
                 {showCustomerSuggestions && matchedCustomerSuggestions.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
                     <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                      <span>Pelanggan Pernah Mencuci ({matchedCustomerSuggestions.length})</span>
-                      <span className="text-[9px] text-blue-600 font-semibold">Klik untuk auto-fill</span>
+                      <span className="truncate pr-2">Pelanggan {operatingOutlet.name} ({matchedCustomerSuggestions.length})</span>
+                      <span className="text-[9px] text-blue-600 font-semibold shrink-0">Klik untuk auto-fill</span>
                     </div>
                     <div className="max-h-56 overflow-y-auto">
                       {matchedCustomerSuggestions.map((cust) => (
