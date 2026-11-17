@@ -62,6 +62,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
               <span className="text-gray-500">No. Telp/WA:</span>
               <span>{order.customer.phone}</span>
             </div>
+            {order.customer.address && (
+              <div className="flex justify-between text-left gap-2">
+                <span className="text-gray-500 shrink-0">Alamat:</span>
+                <span className="font-normal text-right truncate max-w-[180px]">{order.customer.address}</span>
+              </div>
+            )}
           </div>
 
           {/* Items */}

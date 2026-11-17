@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLaundry } from '@/context/LaundryContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOutlet } from '@/context/OutletContext';
@@ -21,6 +21,8 @@ import {
   Check,
   Layers,
   Clock,
+  MapPin,
+  Sparkles,
 } from 'lucide-react';
 
 interface CartItem {
@@ -39,7 +41,7 @@ interface CartItem {
 export default function PosPage() {
   const { user } = useAuth();
   const { outlets, activeOutlet } = useOutlet();
-  const { services, addOrder } = useLaundry();
+  const { orders, services, addOrder } = useLaundry();
 
   const isCashier = user?.role === 'kasir';
   const cashierOutletId = user?.outletId || 'out-1';
@@ -63,7 +65,62 @@ export default function PosPage() {
   // Customer Data
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+
+  // Customer Directory / References extracted from order history
+  interface CustomerRef {
+    name: string;
+    phone: string;
+    address?: string;
+    totalOrders: number;
+  }
+
+  const customerReferences = useMemo(() => {
+    const map = new Map<string, CustomerRef>();
+    const sorted = [...orders].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    sorted.forEach((o) => {
+      const rawName = o.customer?.name?.trim();
+      if (!rawName) return;
+      const key = rawName.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.totalOrders += 1;
+        if (o.customer.phone?.trim()) existing.phone = o.customer.phone.trim();
+        if (o.customer.address?.trim()) existing.address = o.customer.address.trim();
+      } else {
+        map.set(key, {
+          name: rawName,
+          phone: o.customer?.phone?.trim() || '',
+          address: o.customer?.address?.trim() || '',
+          totalOrders: 1,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.totalOrders - a.totalOrders);
+  }, [orders]);
+
+  const matchedCustomerSuggestions = useMemo(() => {
+    if (!customerName.trim()) {
+      return customerReferences.slice(0, 5);
+    }
+    const q = customerName.toLowerCase().trim();
+    return customerReferences
+      .filter((c) => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+      .slice(0, 6);
+  }, [customerName, customerReferences]);
+
+  const handleSelectCustomer = (cust: CustomerRef) => {
+    setCustomerName(cust.name);
+    if (cust.phone) setCustomerPhone(cust.phone);
+    if (cust.address) setCustomerAddress(cust.address);
+    setShowCustomerSuggestions(false);
+  };
 
   // Payment
   const [isPaidNow, setIsPaidNow] = useState(true);
@@ -191,6 +248,7 @@ export default function PosPage() {
       customer: {
         name: customerName.trim(),
         phone: customerPhone.trim(),
+        address: customerAddress.trim() || undefined,
         notes: orderNotes.trim() || undefined,
       },
       items: finalItems.map((item) => ({
@@ -222,6 +280,7 @@ export default function PosPage() {
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
+    setCustomerAddress('');
     setItemNotes('');
     setOrderNotes('');
     setQuantity(selectedService.unit === 'kg' ? 3 : 1);
@@ -275,15 +334,23 @@ export default function PosPage() {
         <div className="lg:col-span-7 space-y-5">
           {/* 1. Data Pelanggan */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-              <User className="w-4 h-4 text-blue-600" />
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                1. Identitas Pelanggan
-              </label>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  1. Identitas Pelanggan
+                </label>
+              </div>
+              {customerReferences.length > 0 && (
+                <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                  ✨ {customerReferences.length} Pelanggan Pernah Mencuci
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+              {/* Nama Pelanggan dengan Smart Autocomplete Popover (Model 1) */}
+              <div className="relative">
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
                   Nama Pelanggan <span className="text-rose-500">*</span>
                 </label>
@@ -291,15 +358,61 @@ export default function PosPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: Bu Siti / Mas Arya"
+                    placeholder="Ketik nama pelanggan..."
                     value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      setShowCustomerSuggestions(true);
+                    }}
+                    onFocus={() => setShowCustomerSuggestions(true)}
+                    onBlur={() => {
+                      setTimeout(() => setShowCustomerSuggestions(false), 200);
+                    }}
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 </div>
+
+                {/* Dropdown Popover Saran Pelanggan Lama (Model 1) */}
+                {showCustomerSuggestions && matchedCustomerSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl z-30 overflow-hidden divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                      <span>Pelanggan Pernah Mencuci ({matchedCustomerSuggestions.length})</span>
+                      <span className="text-[9px] text-blue-600 font-semibold">Klik untuk auto-fill</span>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {matchedCustomerSuggestions.map((cust) => (
+                        <button
+                          key={cust.name + cust.phone}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleSelectCustomer(cust);
+                          }}
+                          className="w-full px-3.5 py-2.5 text-left hover:bg-blue-50/80 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <p className="text-xs font-bold text-slate-800 group-hover:text-blue-600 truncate flex items-center gap-1.5">
+                              <span>{cust.name}</span>
+                              <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                {cust.totalOrders}x Cuci
+                              </span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 font-mono truncate">
+                              {cust.phone} {cust.address ? `• ${cust.address}` : ''}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            Pilih ↵
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* No WhatsApp / HP */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
                   No. WhatsApp / HP <span className="text-rose-500">*</span>
@@ -314,6 +427,23 @@ export default function PosPage() {
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                </div>
+              </div>
+
+              {/* Alamat Pelanggan */}
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Alamat Pelanggan <span className="text-slate-400 font-normal">(Opsional / Alamat Antar-Jemput)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Contoh: Jl. Melati No. 12, Banjar (atau patokan lokasi)"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 </div>
               </div>
             </div>

@@ -153,6 +153,16 @@ export async function removeServiceFromSupabase(id: string): Promise<boolean> {
 // ORDERS
 // ========================
 export function mapRowToOrder(row: any): Order {
+  let extractedAddress = row.customer_address || undefined;
+  let cleanNotes = row.notes || undefined;
+  if (!extractedAddress && row.notes && String(row.notes).startsWith('[Alamat: ')) {
+    const endIdx = row.notes.indexOf(']');
+    if (endIdx !== -1) {
+      extractedAddress = row.notes.substring(9, endIdx).trim();
+      cleanNotes = row.notes.substring(endIdx + 1).trim() || undefined;
+    }
+  }
+
   return {
     id: row.id,
     invoice: row.invoice,
@@ -160,7 +170,7 @@ export function mapRowToOrder(row: any): Order {
       id: `cust-${row.id}`,
       name: row.customer_name,
       phone: row.customer_phone,
-      address: row.customer_address || undefined,
+      address: extractedAddress,
       notes: row.customer_notes || undefined,
       totalOrders: 1,
     },
@@ -175,7 +185,7 @@ export function mapRowToOrder(row: any): Order {
     createdAt: row.created_at || new Date().toISOString(),
     estimatedCompletion: row.estimated_completion || new Date().toISOString(),
     completedAt: row.completed_at || undefined,
-    notes: row.notes || undefined,
+    notes: cleanNotes,
     outletId: row.outlet_id || undefined,
     outletName: row.outlet_name || undefined,
   };
@@ -199,6 +209,10 @@ export async function getOrdersFromSupabase(): Promise<Order[] | null> {
 
 export async function saveOrderToSupabase(order: Order): Promise<boolean> {
   try {
+    const finalNotes = order.customer.address
+      ? `[Alamat: ${order.customer.address.trim()}] ${order.notes || ''}`.trim()
+      : (order.notes || null);
+
     const { error } = await supabase.from('orders').upsert({
       id: order.id,
       invoice: order.invoice,
@@ -214,7 +228,7 @@ export async function saveOrderToSupabase(order: Order): Promise<boolean> {
       order_status: order.orderStatus,
       estimated_completion: order.estimatedCompletion,
       completed_at: order.completedAt || null,
-      notes: order.notes || null,
+      notes: finalNotes,
       outlet_id: order.outletId || null,
       outlet_name: order.outletName || null,
       created_at: order.createdAt,
