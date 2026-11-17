@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLaundry } from '@/context/LaundryContext';
 import { useAuth } from '@/context/AuthContext';
 import { useOutlet } from '@/context/OutletContext';
@@ -40,6 +41,7 @@ interface CartItem {
 }
 
 export default function PosPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { outlets, activeOutlet } = useOutlet();
   const { orders, services, addOrder } = useLaundry();
@@ -291,6 +293,16 @@ export default function PosPage() {
     setItemNotes('');
     setOrderNotes('');
     setQuantity(selectedService.unit === 'kg' ? 3 : 1);
+  };
+
+  const handleCloseReceipt = () => {
+    setCreatedOrder(null);
+    router.push('/');
+  };
+
+  const handleClosePackagingTag = () => {
+    setPackagingTagOrder(null);
+    router.push('/');
   };
 
   return (
@@ -859,14 +871,17 @@ export default function PosPage() {
       {/* Modal Cetak Struk / Nota */}
       <ReceiptModal
         order={createdOrder}
-        onClose={() => setCreatedOrder(null)}
-        onOpenTagModal={(ord) => setPackagingTagOrder(ord)}
+        onClose={handleCloseReceipt}
+        onOpenTagModal={(ord) => {
+          setPackagingTagOrder(ord);
+          setCreatedOrder(null);
+        }}
       />
 
       {/* Modal Cetak Label TAG Kemasan */}
       <PackagingTagModal
         order={packagingTagOrder}
-        onClose={() => setPackagingTagOrder(null)}
+        onClose={handleClosePackagingTag}
       />
     </div>
   );

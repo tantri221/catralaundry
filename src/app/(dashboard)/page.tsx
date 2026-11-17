@@ -14,6 +14,7 @@ import {
 } from '@/lib/constants';
 import { Order } from '@/types/laundry';
 import { ReceiptModal } from '@/components/ReceiptModal';
+import { PackagingTagModal } from '@/components/PackagingTagModal';
 import { HandoverModal } from '@/components/HandoverModal';
 import { EstimatedCompletionBadge } from '@/components/EstimatedCompletionBadge';
 import {
@@ -27,6 +28,7 @@ import {
   Check,
   Package,
   Clock,
+  Tag,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -34,6 +36,7 @@ export default function DashboardPage() {
   const { outlets } = useOutlet();
   const { orders, updateOrderStatus, updatePaymentStatus } = useLaundry();
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<Order | null>(null);
+  const [selectedPackagingTagOrder, setSelectedPackagingTagOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'process' | 'ready' | 'completed'>('all');
   const [search, setSearch] = useState('');
   const [selectedHandoverOrder, setSelectedHandoverOrder] = useState<Order | null>(null);
@@ -445,6 +448,16 @@ export default function DashboardPage() {
                     <span className="hidden sm:inline">Nota</span>
                   </button>
 
+                  {/* Action 3: Cetak Label TAG */}
+                  <button
+                    onClick={() => setSelectedPackagingTagOrder(order)}
+                    className="p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold flex items-center gap-1 transition-colors border border-amber-200"
+                    title="Cetak Label Penanda Kemasan (TAG)"
+                  >
+                    <Tag className="w-4 h-4 text-amber-600" />
+                    <span className="hidden sm:inline">TAG</span>
+                  </button>
+
                   {/* Workflow Advancement Buttons */}
                   {isProcessing && (
                     <button
@@ -497,6 +510,13 @@ export default function DashboardPage() {
       <ReceiptModal
         order={selectedReceiptOrder}
         onClose={() => setSelectedReceiptOrder(null)}
+        onOpenTagModal={(ord) => setSelectedPackagingTagOrder(ord)}
+      />
+
+      {/* Modal Cetak Label TAG Kemasan */}
+      <PackagingTagModal
+        order={selectedPackagingTagOrder}
+        onClose={() => setSelectedPackagingTagOrder(null)}
       />
 
       {/* Modal Pengingat Pelunasan Pembayaran & Penyerahan */}
